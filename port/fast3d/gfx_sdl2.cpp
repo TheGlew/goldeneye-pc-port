@@ -61,8 +61,24 @@ static void gfx_sdl_set_fullscreen_flag(int32_t mode) {
     }
 }
 
+/* D639: set once a resolution is picked explicitly (gfx_sdl_set_closest_resolution). */
+static bool exclusive_mode_chosen = false;
+
 static void set_fullscreen(bool on, bool call_callback) {
     fullscreen_state = on;
+    /* D639: exclusive fullscreen switches the monitor to the window's display
+     * mode; with none set, SDL derives it from the current WINDOW size, so a
+     * 1440x1080 window asked the monitor for ~1440x1080 instead of its desktop
+     * resolution (seen with NVIDIA "OpenGL present method = Prefer native").
+     * Unless a resolution was picked explicitly, use the desktop mode of the
+     * display the window is on. */
+    if (on && fullscreen_flag == SDL_WINDOW_FULLSCREEN && !exclusive_mode_chosen) {
+        SDL_DisplayMode dm;
+        const int disp = SDL_GetWindowDisplayIndex(wnd);
+        if (SDL_GetDesktopDisplayMode(disp >= 0 ? disp : 0, &dm) == 0 && dm.w > 0 && dm.h > 0) {
+            SDL_SetWindowDisplayMode(wnd, &dm);
+        }
+    }
     SDL_SetWindowFullscreen(wnd, on ? fullscreen_flag : 0);
     if (call_callback && on_fullscreen_changed_callback) {
         on_fullscreen_changed_callback(on);
@@ -86,17 +102,13 @@ static void gfx_sdl_get_active_window_refresh_rate(uint32_t* refresh_rate) {
     *refresh_rate = mode.refresh_rate;
 }
 
-// D581 (#151): SDL display 0 is not the OS primary on multi-monitor setups. The
-// primary display is the one whose bounds contain the desktop origin (0,0)
-// (X11/Xwayland/Windows convention); fall back to display 0.
+// D581 (#151): SDL lists the OS primary display first (X11 RandR primary,
+// Windows MONITORINFOF_PRIMARY, macOS main display), so display 0 IS the
+// primary. The original bug was centring with display 0's size as absolute
+// coordinates, ignoring its position; callers now use its global bounds.
+// Not "the display containing (0,0)": on X11 the primary can sit right of a
+// secondary at the origin (the #151 layout; verified on KDE X11, 2026-10-13).
 static int primary_display_index() {
-    const int n = SDL_GetNumVideoDisplays();
-    for (int i = 0; i < n; ++i) {
-        SDL_Rect r;
-        if (SDL_GetDisplayBounds(i, &r) == 0 && r.x <= 0 && r.y <= 0 && r.x + r.w > 0 && r.y + r.h > 0) {
-            return i;
-        }
-    }
     return 0;
 }
 
@@ -108,11 +120,15 @@ static void gfx_sdl_init(const struct GfxWindowInitSettings *set) {
     if (!set->allow_hidpi) {
         // HiDPI control, if available
         SDL_SetHint(SDL_HINT_VIDEO_HIGHDPI_DISABLED, "1");
-#if defined(PLATFORM_WIN32) && defined(SDL_HINT_WINDOWS_DPI_AWARENESS)
-        // if HiDPI is disabled, declare ourselves DPI aware to get 1:1 window size on Windows
-        SDL_SetHint(SDL_HINT_WINDOWS_DPI_AWARENESS, "permonitor");
-#endif
     }
+#endif
+#if defined(_WIN32) && defined(SDL_HINT_WINDOWS_DPI_AWARENESS)   /* PD used PLATFORM_WIN32, never defined here */
+    // Always declare per-monitor DPI awareness on Windows so the window and
+    // fullscreen surfaces are 1:1 with physical pixels. Without it, a scaled
+    // display (e.g. 3840x2160 at 125%) hands the game a 3072x1728 surface and
+    // stretches it (soft picture) -- this used to be set only when HiDPI was
+    // disabled. Width/Height in the ini are physical pixels either way.
+    SDL_SetHint(SDL_HINT_WINDOWS_DPI_AWARENESS, "permonitorv2");
 #endif
 
     // D566: the port never takes text input, so never ask for an on-screen
@@ -328,16 +344,24 @@ static void get_centered_positions_native(int32_t width, int32_t height, int32_t
     const int disp_idx = SDL_GetWindowDisplayIndex(wnd);
     SDL_DisplayMode mode = {};
     SDL_GetDesktopDisplayMode(disp_idx, &mode);
-    *posX = mode.w / 2 - width / 2;
-    *posY = mode.h / 2 - height / 2;
+    SDL_Rect b = { 0, 0, 0, 0 };   /* D581: the display's desktop offset */
+    if (disp_idx < 0 || SDL_GetDisplayBounds(disp_idx, &b) != 0) { b.x = 0; b.y = 0; }
+    *posX = b.x + mode.w / 2 - width / 2;
+    *posY = b.y + mode.h / 2 - height / 2;
 }
 
 static void gfx_sdl_get_centered_positions(int32_t width, int32_t height, int32_t *posX, int32_t *posY) {
     const int disp_idx = SDL_GetWindowDisplayIndex(wnd);
-    SDL_DisplayMode mode = {};
-    SDL_GetCurrentDisplayMode(disp_idx, &mode);
-    *posX = mode.w / 2 - width / 2;
-    *posY = mode.h / 2 - height / 2;
+    /* D581: centre on the window's display in global coordinates (its bounds
+     * carry the desktop offset; the mode size alone lands on the leftmost). */
+    SDL_Rect b = { 0, 0, 0, 0 };
+    if (disp_idx < 0 || SDL_GetDisplayBounds(disp_idx, &b) != 0 || b.w <= 0 || b.h <= 0) {
+        SDL_DisplayMode mode = {};
+        SDL_GetCurrentDisplayMode(disp_idx < 0 ? 0 : disp_idx, &mode);
+        b.x = 0; b.y = 0; b.w = mode.w; b.h = mode.h;
+    }
+    *posX = b.x + b.w / 2 - width / 2;
+    *posY = b.y + b.h / 2 - height / 2;
 }
 
 static void gfx_sdl_set_closest_resolution(int32_t width, int32_t height, bool should_center) {
@@ -345,6 +369,7 @@ static void gfx_sdl_set_closest_resolution(int32_t width, int32_t height, bool s
     const int disp_idx = SDL_GetWindowDisplayIndex(wnd);
     SDL_DisplayMode closest = {};
     if (SDL_GetClosestDisplayMode(disp_idx, &mode, &closest)) {
+        exclusive_mode_chosen = true;   /* D639: an explicit pick wins over the desktop mode */
         SDL_SetWindowDisplayMode(wnd, &closest);
         SDL_SetWindowSize(wnd, closest.w, closest.h);
         if (should_center) {
@@ -454,6 +479,25 @@ extern "C" void gfx_sdl_park_for_exit(void) {
             finish();
         }
         SDL_GL_MakeCurrent(NULL, NULL);
+    }
+}
+
+/* D632: host thread, at exit, after the render thread has parked (context
+ * unbound everywhere, GPU drained by gfx_sdl_park_for_exit). Delete the GL
+ * context and the window while the process is still alive, so the driver
+ * retires its hardware queues through the normal path. Left alone, they are
+ * destroyed by the kernel inside process teardown (DXGPROCESS::Destroy ->
+ * DXGCONTEXT::DestroyContext -> VidSchTerminateHwQueue), which is exactly
+ * where the 0x119 bugcheck of 2026-10-10 fired (minidump, HAGS on). */
+extern "C" void gfx_sdl_teardown_for_exit(void) {
+    if (ctx) {
+        SDL_GL_MakeCurrent(NULL, NULL);   // host never holds it after init; harmless
+        SDL_GL_DeleteContext(ctx);
+        ctx = NULL;
+    }
+    if (wnd) {
+        SDL_DestroyWindow(wnd);
+        wnd = NULL;
     }
 }
 

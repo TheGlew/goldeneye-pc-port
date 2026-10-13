@@ -60,7 +60,7 @@ static int initDone = 0;
  * at modern resolutions without requiring 4x anti-aliasing.
  */
 static int cfgVSync         = 1;   /* swap interval: 0 = off, 1 = on            */
-static int cfgFpsCap        = -1;  /* frame cap in fps; -1 = Auto (match display refresh, 60..144), 0 = uncapped (vsync); menu: Auto/30/60, and 90/120/144 = D578 interpolation */
+static int cfgFpsCap        = -1;  /* frame cap in fps; -1 = Auto (match display refresh, up to 4x the VI rate), 0 = uncapped (vsync); menu: Auto/30/60, and 90/120/144/165/240 = D578 interpolation */
 static int cfgMSAA          = 2;   /* 1/2/4/8/16 samples; 2x default is lighter on low-end GPUs */
 static int cfgTexFilter     = 1;   /* 0 = nearest, 1 = bilinear (default), 2 = N64 3-point + trilinear, 3 = trilinear (Trilinear option, playtest 2026-10-03) */
 static int cfgFixMipTex     = 1;   /* RC2: clip mip-contaminated texture uploads to base height */
@@ -1033,13 +1033,15 @@ static int s_dumpSlot = -1;   /* D578: GE_PCDUMP_PRESENTS names each present */
 
 /* Auto (Video.FpsCap = -1): match the display. Refresh unknown, or no faster
  * than the sim (60 Hz panel, 59.94 reported as 59/60) -> the VI rate, i.e. the
- * plain non-interpolated path; otherwise the refresh clamped to 144. */
+ * plain non-interpolated path; otherwise the refresh itself, up to the
+ * renderer's ceiling of 4 presents per sim tick (IP_SLOTS / 2 in libultra.c:
+ * the ring holds this frame + one still waiting), i.e. 240 NTSC / 200 PAL. */
 int videoAutoFpsCap(void)
 {
     const int vi = (osTvType == 0) ? 50 : 60;
     const int refresh = gfx_sdl_get_refresh_rate();
     if (refresh <= vi + 5) return vi;
-    return refresh > 144 ? 144 : refresh;
+    return refresh > 4 * vi ? 4 * vi : refresh;
 }
 
 static void videoApplyFpsCap(void)
@@ -1277,6 +1279,24 @@ static void videoRenderPark(void)
     }
 }
 
+/* D632: host thread, from the atexit handler (after the window state and
+ * config are saved). Tears the GL context + window down only when the render
+ * thread is parked: it then holds no context and never touches GL again. On a
+ * park timeout the render thread may still be inside the driver, so deleting
+ * its context would be worse than leaving it to the kernel. */
+void videoTeardownForExit(void)
+{
+    if (!initDone) {
+        return;
+    }
+    if (!SDL_AtomicGet(&s_parked)) {
+        sysLogPrintf(LOG_WARNING, "video: render not parked; GL teardown skipped");
+        return;
+    }
+    gfx_sdl_teardown_for_exit();
+    sysLogPrintf(LOG_INFO, "video: GL context and window destroyed");
+}
+
 /* Host thread: exit once the render thread is out of the GL driver. */
 static void videoHostExitIfRequested(void)
 {
@@ -1284,8 +1304,15 @@ static void videoHostExitIfRequested(void)
         return;
     }
     Uint32 start = SDL_GetTicks();
-    while (!SDL_AtomicGet(&s_parked) && SDL_AtomicGet(&s_inFrame) &&
-           SDL_GetTicks() - start < QUIT_WAIT_MS) {
+    /* D632: wait for the park itself, not just for "outside a frame". A
+     * quit landing between frames (window close, 2026-10-10: "render idle
+     * after 0 ms") used to exit at once, before the render thread had
+     * unbound its context, so the D632 teardown was skipped and the GL
+     * context fell to the kernel's process-exit cleanup -- the bugcheck
+     * path. Once s_quitReq is set the next frame start parks instead of
+     * drawing (see the ordering note above), so this takes about a frame;
+     * QUIT_WAIT_MS stays the bound if the render thread is stuck. */
+    while (!SDL_AtomicGet(&s_parked) && SDL_GetTicks() - start < QUIT_WAIT_MS) {
         SDL_Delay(2);
     }
     sysLogPrintf(LOG_INFO, "video: exiting (render %s after %u ms)",

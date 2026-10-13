@@ -53,6 +53,7 @@ extern MENU current_menu;
 #include "video.h"
 #include "input.h"
 #include "front.h"   /* selected_folder_num (D356 stage probe) */
+#include "lv.h"   /* lvlGetCurrentMultiPlayerSec (D606 mission timer) */
 #include "bondtypes.h"   /* sImageTableEntry (D555 crosshair pointer: typed field reads) */
 #include "file.h"   /* save_data (D356 reset probe: second-file isolation) */
 #include "optionsoverlay.h"
@@ -144,10 +145,11 @@ static const char *const kGameplayView[] = { "Original", "Extended", NULL };   /
  * have it, but it's dropped from the menu: with VSync on (the default) it's
  * indistinguishable from 60, and with VSync off it just burns GPU time
  * re-presenting the same simulated frame -- confusing for no real benefit. */
-/* D578: 90/120/144 draw interpolated frames between the 60 Hz game frames
+/* D578: 90/120/144/165/240 draw interpolated frames between the 60 Hz game frames
  * (port/fast3d/gfx_pc.cpp); the sim rate is unchanged. */
-/* -1 = Auto: match the display refresh (60..144; the default). */
-static const int         kFpsCapSeq[] = { -1, 30, 60, 90, 120, 144 };
+/* -1 = Auto: match the display refresh (up to 240; the default). 240 is the
+ * renderer's ceiling: at most IP_SLOTS/2 = 4 presents per 60 Hz tick (libultra.c). */
+static const int         kFpsCapSeq[] = { -1, 30, 60, 90, 120, 144, 165, 240 };
 #define FPSCAP_N ((int)(sizeof(kFpsCapSeq) / sizeof(kFpsCapSeq[0])))
 
 /* Windowed-mode resolution presets. Filtered at init to those that fit the
@@ -383,10 +385,13 @@ static struct Row rows[] = {
     { .key="__HdrGame", .label="GAME", .kind=ROW_HEADER },
     /* Aim control (hold vs toggle the aim button) is a per-file watch row
      * like Auto-aim; the port honours the game's toggle. The game's own
-     * "Look up/down" (Bond.Look) row was removed (D564): the port's mouse and
-     * centred-pad look write the view directly and never consult it, so the
-     * Mouse / Controller "Invert look" rows are the only inversion controls;
-     * watchsettings.c pins the game's value to its factory default. */
+     * "Look up/down" (Bond.Look) row was removed (D564): in the Modern
+     * scheme the port's mouse and centred-pad look write the view directly
+     * and never consult it, so the Mouse / Controller "Invert look" rows
+     * are the only inversion controls there (watchsettings.c pins the
+     * game's value to its factory default). #145: in the Original scheme
+     * the pin is lifted and the in-game watch row is live again -- the
+     * rows above still apply on top (pad look stick, #145 fix). */
     { .key="Bond.AimControl", .label="Aim control", .kind=ROW_TOGGLE,
       .names=kHold, .found=1, .uiMax=1, .cfgMax=1, .saveScoped=1 },
     { .key="Bond.AutoAim", .label="Auto-aim", .kind=ROW_TOGGLE,
@@ -437,6 +442,9 @@ static struct Row rows[] = {
      * patched, read or written. Applies live (rowSetCommit). */
     { .key="Game.AllUnlocked", .label="All unlocked",
       .kind=ROW_TOGGLE, .step=1, .names=kOnOff },
+    /* D606 (#144): PD-style always-visible mission timer; drawn top-right
+     * (under the FPS readout when both are on) while a stage is active. */
+    { .key="Game.MissionTimer", .label="Mission timer", .kind=ROW_TOGGLE, .step=1, .names=kOnOff },
     SEP(G4),
     /* D551: opt-in update check; the action row appears only once a newer release is known. */
     { .key="Game.CheckUpdates", .label="Check for updates", .kind=ROW_TOGGLE, .step=1, .names=kOnOff },
@@ -791,9 +799,20 @@ int optionsBindingCaptureTick(void)
 static int      s_showFps = 0;
 static char     s_fpsText[16] = "";
 
+/* D606 (#144, v0.6.0): optional PD-style always-visible mission timer.
+ * Reads the game's own mission clock (lvlGetCurrentMultiPlayerSec: the
+ * D_80048394 accumulator scaled to region ticks -- the same source the
+ * watch TIME page and the AI_IFMissionTime conditions use), so it is the
+ * faithful N64 mission time, not a wall clock. Port-only: a text row like
+ * the D213 FPS readout; off by default, nothing appended when off, so
+ * goldens are untouched. */
+static int      s_missionTimer = 0;
+static char     s_missionTimeText[24] = "";
+
 PD_CONSTRUCTOR static void overlayConfigInit(void)
 {
     configRegisterInt("Video.DisplayFPS", &s_showFps, 0, 1);
+    configRegisterInt("Game.MissionTimer", &s_missionTimer, 0, 1);
 }
 
 /* Sampled once per emitted frame; recomputes the string every ~0.5 s. */
@@ -817,6 +836,27 @@ static void fpsTick(void)
         snprintf(s_fpsText, sizeof(s_fpsText), "%d FPS", fps);
         winStartUs = nowUs;
         frames = 0;
+    }
+}
+
+/* D606: refreshed once per emitted frame, like the FPS window above. The
+ * clock is stage-paced (lvl.c advances it during a run), so menu frames
+ * simply carry no text and the row disappears outside a mission. */
+static void missionTimerTick(void)
+{
+    if (!s_missionTimer ||
+        (current_menu != MENU_RUN_STAGE && current_menu != MENU_INVALID)) {
+        s_missionTimeText[0] = 0;
+        return;
+    }
+    int s = (int)lvlGetCurrentMultiPlayerSec();
+    if (s < 0) s = 0;
+    if (s >= 3600) {
+        snprintf(s_missionTimeText, sizeof(s_missionTimeText), "TIME %d:%02d:%02d",
+                 s / 3600, (s / 60) % 60, s % 60);
+    } else {
+        snprintf(s_missionTimeText, sizeof(s_missionTimeText), "TIME %d:%02d",
+                 s / 60, s % 60);
     }
 }
 
@@ -1945,14 +1985,17 @@ static int ddGeom(s32 *x0, s32 *y0, s32 *x1, s32 *y1, int *vis)
     s32 h = v * OV_LINE + 2;
     *x1 = o.valueR + 3;
     *x0 = *x1 - w;
-    s32 H = ovH();
+    /* D646: the popup stays inside the settings box -- it used to open
+     * down over the hint/tooltip panel below the box (its limit was the
+     * screen edge, not o.bottom). */
+    s32 lo = o.titleB + 1, hi = o.bottom - 1;
     *y0 = rowY + OV_LINE;
-    if (*y0 + h > H - 4) *y0 = rowY - h;   /* no room below: open upward */
+    if (*y0 + h > hi) *y0 = rowY - h;   /* no room below: open upward */
     /* D568: no room above either (a long list on a mid-page row): keep the whole
-     * popup on screen, flush with the bottom margin. A negative top used to
+     * popup inside the box, flush with its bottom. A negative top used to
      * draw the labels above the screen while the fill wrapped down past the
      * bottom edge (an empty, misplaced box). */
-    if (*y0 < 4) *y0 = (H - 4 - h > 4) ? H - 4 - h : 4;
+    if (*y0 < lo) *y0 = (hi - h > lo) ? hi - h : lo;
     *y1 = *y0 + h;
     *vis = v;
     return 1;
@@ -2081,6 +2124,7 @@ static const struct { const char *key; double def; } kResetDefaults[] = {
     /* GAMEPLAY ini rows (port/src/video.c initializers) */
     { "Game.SkipIntro",   0 },   /* = 0 */
     { "Game.CheckUpdates", 0 },  /* = 0 (off, D551) */
+    { "Game.MissionTimer", 0 },  /* = 0 (off, D606) */
     { "Game.NoHitFlash",  0 },   /* = 0 */
     { "Game.AllUnlocked", 0 },   /* = 0 -- D257's "default ON" note was stale */
     { "Game.HudScale",   100 },  /* = 100 (D226) */
@@ -3403,6 +3447,7 @@ static Gfx *overlayEmitLocked(void)
     }
 
     fpsTick();
+    missionTimerTick();
 
     {   /* D558 test hook: GE_OPTIONSOVERLAY_ATFRAME=<n> re-applies the open request at emit n (read once). */
         static int s_atFrame = -2, s_emitN = 0;
@@ -3421,10 +3466,12 @@ static Gfx *overlayEmitLocked(void)
     }
 
     if (!s_open) {
-        if (!s_showFps || !s_fpsText[0]) {
+        if ((!s_showFps || !s_fpsText[0]) && !s_missionTimeText[0]) {
             return NULL;   /* nothing appended -> golden dumps byte-identical */
         }
-        /* D213: FPS-only mini DL (top-right), panel closed. */
+        /* D213: FPS-only mini DL (top-right), panel closed. D606: the
+         * mission timer shares the top-right corner, below the FPS readout
+         * when both are visible. */
         const s32 fw = ovW();
         const s32 fh = ovH();
         gfx_set_overlay_scale(ovScale());   /* D510 */
@@ -3434,7 +3481,14 @@ static Gfx *overlayEmitLocked(void)
         gDPSetTexturePersp(fgdl++, G_TP_NONE);
         gDPSetScissor(fgdl++, G_SC_NON_INTERLACE, 0, 0, viGetX(), viGetY());
         fgdl = microcode_constructor(fgdl);
-        fgdl = drawTextR(fgdl, fw - 6, 6, s_fpsText, 0x40ff60ff);
+        int ty = 6;
+        if (s_showFps && s_fpsText[0]) {
+            fgdl = drawTextR(fgdl, fw - 6, 6, s_fpsText, 0x40ff60ff);
+            ty = 22;
+        }
+        if (s_missionTimeText[0]) {
+            fgdl = drawTextR(fgdl, fw - 6, ty, s_missionTimeText, 0x40ff60ff);
+        }
         gDPPipeSync(fgdl++);
         gSPEndDisplayList(fgdl++);
         return s_buf;
@@ -3817,6 +3871,7 @@ static const struct { const char *key, *help; } kRowHelp[] = {
     { "Game.SkipIntro", "Skips the intro and opens the file select screen." },
     { "Game.AllUnlocked", "Unlocks all levels, 007 mode and every cheat." },
     { "Game.CheckUpdates", "Notifies you when a new version is available." },
+    { "Game.MissionTimer", "Shows the mission elapsed time on screen (top-right, under the FPS readout)." },
 };
 
 

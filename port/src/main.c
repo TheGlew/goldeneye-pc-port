@@ -88,6 +88,10 @@ static void portAtExit(void)
     inputRumbleStopAll();   /* D493: no pad left rumbling after exit */
     videoSaveWindowState();
     configSave();
+    /* D632: release the GPU context while the process is alive (needs the
+     * window state saved first; before any relaunch so the GPU init of the
+     * new instance never overlaps this teardown). */
+    videoTeardownForExit();
     /* D443: Restart game -- runs only on the orderly D344 exit path, after the
      * ini is written, so the new instance reads the saved settings. */
     if (videoRestartRequested()) {

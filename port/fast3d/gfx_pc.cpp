@@ -51,8 +51,6 @@ uintptr_t gfxFramebuffer;
 #define SCALE_4_8(VAL_) ((VAL_)*0x11)
 #define SCALE_8_4(VAL_) ((VAL_) / 0x11)
 #define SCALE_3_8(VAL_) ((VAL_)*0x24)
-/* D266: RDP IA4 is I2:A2 (2-bit intensity, 2-bit alpha), not the I3:A1 the
- * PD-derived importer assumed. */
 #define SCALE_2_8(VAL_) ((VAL_)*0x55)
 #define SCALE_8_3(VAL_) ((VAL_) / 0x24)
 
@@ -959,16 +957,17 @@ static void import_texture_ia4(int tile, const LoadedTexture& loaded_texture, bo
     for (uint32_t i = 0; i < size_bytes * 2; i++, dest += 4) {
         const uint8_t byte = addr[i / 2];
         const uint8_t part = (byte >> (4 - (i % 2) * 4)) & 0xf;
-        /* D266: I2:A2 -- the hardware IA4 layout. The old I3:A1 read made the
-         * A2=1 canopy pixels fully opaque and the A2=2 edge dither invisible
-         * (D236/D265 tree "wall"). */
-        const uint8_t intensity = part >> 2;
-        const uint8_t alpha = part & 3;
-        const uint8_t c = SCALE_2_8(intensity);
+        /* D644: RDP IA4 is I3:A1 (3-bit intensity, 1-bit alpha). D266's
+         * I2:A2 read was unverified; it turned the even (A=0) nibbles 2/4/6 into
+         * alpha 170/0 (and I2 as dark) and drew the file-select crest's transparent
+         * texels as a dark square (#146). */
+        const uint8_t intensity = part >> 1;
+        const uint8_t alpha = part & 1;
+        const uint8_t c = (uint8_t)((intensity * 255) / 7);
         dest[0] = c;
         dest[1] = c;
         dest[2] = c;
-        dest[3] = SCALE_2_8(alpha);
+        dest[3] = alpha ? 255 : 0;
     }
 
     const uint32_t width = rdp.texture_tile[tile].line_size_bytes * 2;

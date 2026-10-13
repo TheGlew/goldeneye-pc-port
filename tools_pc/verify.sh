@@ -412,9 +412,13 @@ except Exception:
           # golden's frame stems don't line up with this run's --dump window
           # (goldens are captured at GOLDEN_DUMP; a
           # sweep using a different stride has nothing to compare against
-          # rather than a real regression). Only exit 1 is a verdict fail.
+          # rather than a real regression). exit 3 = a frame was captured at a
+          # different size than its golden (e.g. the Deck dumping 1280x800
+          # against 640x480 goldens): nothing was compared, so it is a fail,
+          # never a pass. Exits 1 and 3 are verdict fails.
           case "$fexit" in
             1) status=REGRESSION; note="framediff vs $gdir" ;;
+            3) status=REGRESSION; note="frame size differs from golden $gdir (not compared)" ;;
             2) note="golden frame stems don't match --dump window ($dump) for $gdir" ;;
           esac
           local tolpct; tolpct=$(golden_tolpct_for "$name")

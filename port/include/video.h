@@ -103,6 +103,10 @@ int  videoIsFullscreen(void);
  * on a clean exit). No-op if the window isn't up. */
 void videoSaveWindowState(void);
 
+/* D632: delete the GL context + window at exit (only if the render thread
+ * parked). Called from the atexit handler after configSave. */
+void videoTeardownForExit(void);
+
 #ifdef __cplusplus
 }
 #endif

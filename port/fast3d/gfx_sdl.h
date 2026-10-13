@@ -18,6 +18,8 @@ void gfx_sdl_make_context_current(void);
 void gfx_sdl_release_context(void);
 /* D344: finish queued GL work and unbind the context (render thread, quit). */
 void gfx_sdl_park_for_exit(void);
+/* D632: delete the GL context + window (host thread, exit, render parked). */
+void gfx_sdl_teardown_for_exit(void);
 
 /* Refresh the cached drawable size after a window resize (called by the
  * host thread's event pump). */

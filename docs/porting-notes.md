@@ -1985,3 +1985,28 @@ On the Deck (Game Mode: stderr is dropped, so instruments must go to ge007.log v
 ## D41. A long frame time on one render thread is not draw cost until you line presents up against draws (D583)
 
 Before optimising a "slow" interpolated frame, check what its time contains: with one worker that both draws and presents, a frame's measured draw includes nothing but work, yet the presents queued behind it go out late by up to the whole draw, and the symptom (uneven 8/14 ms gap pairs at full present rate) looks exactly like an over-budget pass. Profile on-CPU time (`perf` works on SteamOS, `perf_event_paranoid` 2 is enough for your own process) and rule out the GPU clock (QAM Manual GPU Clock) before touching batching; then log each draw's start/end next to each present's due/late time (`GE_INTERPLOG=<n>`). On the Deck in Game Mode, gamescope only shows windows Steam launched: a harness started over ssh runs hidden and throttled, so launch through a Steam shortcut (`tools_pc/deckrunner.sh`).
+## D42.. Combiner alpha only reaches the framebuffer through the blender: no FORCE_BL, no blend (D414)
+
+fast3d's `use_alpha` (blender inputs CLR_MEM/1MA) is a heuristic for "this is an alpha-blended draw". On the RDP the blender only acts on interior pixels when `FORCE_BL` is set (or via coverage/`CVG_X_ALPHA`); a render mode with XLU-style inputs but no `FORCE_BL` is opaque regardless of combiner alpha. Vanilla GE never noticed because its combiner alpha there is `SHADE` alpha (255). A mod's DL with cycle-2 alpha `(0,0,0,0)` drew fully transparent = black. GL blend is now gated on `FORCE_BL | CVG_X_ALPHA`.
+
+**Tell:** rasterized with correct depth, immune to vertex-shade boosting, correct raw texels, black output. **Bisect fast:** output raw `texVal0/texVal1` in the fragment shader (bypasses combiner + blend); if that is right, the fault is combiner or blend state, not textures.
+
+## D43. A capture taken through the feature under test is not ground truth (D628)
+
+`GE_TEXDUMP` dumps what the GL upload receives, which is the *texture pack's*
+image whenever a pack supplies that texnum - so dumps captured with
+`Video.TexturePack` set cannot validate a pack join: the hold-out compares the
+pack PNG with a dump of itself and scores a perfect 1.000. 52 of 346 dumps in
+one such set were pack-substituted, and the false "pack and ROM textures are
+the same size" premise read off them then gated the matcher down to nothing
+(real packs are 4x-128x upscales). Two habits avoid the whole class: capture
+ground truth with the feature OFF (and record in the dump dir which switches
+were set), and before trusting a precision number, check that the hold-out's
+dims/format still look like the *source* data rather than the replacement.
+A 100 % score on a derived metric is a circularity smell, not a result.
+
+**"Faithful" input mode = emit native bits and add nothing (D643).** A port that routes pad buttons to PC *actions* (dedicated use/reload calls, crouch, gadget cycle) cannot also claim to be the N64 pad: the game's own handlers (e.g. B = use-else-reload) only run on the native bit, so a button bound to two actions double-fires, and a fixed menu lockout reinterprets faces. For a strict mode, give the published bind table a native-button layer, zero every port-action mask in it (so side paths that read the action bitset, like a dedicated use/reload hook, go inert without being touched), and make the pure mapper `orig`-flagged and context-free; prove it with the same boot self-test (per-source table across stage/menu/tank). Also stop role-swapping sticks to match the game's selected style: a virtual pad keeps left = analog, right = C.
+
+## D44. RDP IA4 is I3:A1; a decode tweak justified by "hardware layout" needs a texel dump (D644)
+
+IA4 = 3-bit intensity + 1-bit alpha (nibble = I<<1 | A). An I2:A2 decode (D266) turned the A=0 nibbles 2/4/6 into semi-opaque black and drew the file-select crest on a dark square. When a texture's transparent texels render opaque, histogram the raw nibbles/bytes (`GE_TEXRAW` + `GE_D526` for the draw's fmt/oml/comb) before touching blender or alpha-compare code: the importer's alpha expansion is the cheapest suspect.

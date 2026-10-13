@@ -30,9 +30,10 @@ lighter values for draw distance, LOD distance and anti-aliasing into
 
 ### Above 60 fps
 
-`Video.FpsCap` (F10, *Frame rate cap*) accepts Auto, 30, 60, 90, 120 and 144.
+`Video.FpsCap` (F10, *Frame rate cap*) accepts Auto, 30, 60, 90, 120, 144, 165 and 240.
 **Auto** is the default on fresh installs (an existing `ge007.ini` keeps its
-value) and matches the display's refresh rate, up to 144; on a 60 Hz display it
+value) and matches the display's refresh rate, up to 240 (the renderer draws at most four
+frames per game tick); on a 60 Hz display it
 is plain 60.
 
 - **The game still simulates at its original 60 Hz (NTSC) tick.** The extra

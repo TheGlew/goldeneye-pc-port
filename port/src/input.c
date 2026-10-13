@@ -465,7 +465,33 @@ static const struct { const char *key; const char *label; const char *def; } kPa
     [PA_START]   = { "Start",      "Start / pause",    "start" },
 };
 
-typedef struct { u32 mask[PA_COUNT]; } PadBinds;
+/* D643 (#145 b/c, #149): Original control scheme = a STRICT virtual N64
+ * controller. Each native N64 button is bound to up to two pad sources
+ * (Input.N64Pad[N].<Button>), and a press emits exactly that bit in every
+ * context (stage, menu, watch, tank) -- no port action (dedicated use/reload,
+ * crouch, gadget cycle, prev-weapon) is injected; the game's own code decides
+ * what A/B/Z/... mean (B = "use if usable else reload" lives in lv.c).
+ * Defaults follow the Nintendo Switch Online N64 convention. The right stick
+ * stays digital C-buttons (fixed, in addition to any C source bound here). */
+enum { NB_A, NB_B, NB_Z, NB_R, NB_L, NB_CU, NB_CD, NB_CL, NB_CR, NB_START,
+       NB_DU, NB_DD, NB_DL, NB_DR, NB_COUNT };
+static const struct { const char *key; const char *def; unsigned bit; } kN64Btn[NB_COUNT] = {
+    [NB_A]     = { "A",      "a",                        GE_CONT_A },
+    [NB_B]     = { "B",      "x",                        GE_CONT_B },
+    [NB_Z]     = { "Z",      "righttrigger",             GE_CONT_G },
+    [NB_R]     = { "R",      "lefttrigger,rightshoulder", GE_CONT_R },
+    [NB_L]     = { "L",      "leftshoulder",             GE_CONT_L },
+    [NB_CU]    = { "CUp",    "none",                     GE_CONT_E },
+    [NB_CD]    = { "CDown",  "none",                     GE_CONT_D },
+    [NB_CL]    = { "CLeft",  "none",                     GE_CONT_C },
+    [NB_CR]    = { "CRight", "none",                     GE_CONT_F },
+    [NB_START] = { "Start",  "start",                    GE_CONT_START },
+    [NB_DU]    = { "DUp",    "dpup",                     GE_CONT_UP },
+    [NB_DD]    = { "DDown",  "dpdown",                   GE_CONT_DOWN },
+    [NB_DL]    = { "DLeft",  "dpleft",                   GE_CONT_LEFT },
+    [NB_DR]    = { "DRight", "dpright",                  GE_CONT_RIGHT },
+};
+typedef struct { u32 mask[PA_COUNT]; u32 n64[NB_COUNT]; } PadBinds;
 typedef struct { PadBinds seat[MAX_PADS]; } PadTable;
 
 static int  padPreset[MAX_PADS] = {0};           /* D518: per-seat (Input.PadPreset[2/3/4]) */
@@ -475,8 +501,22 @@ static int  padPreset[MAX_PADS] = {0};           /* D518: per-seat (Input.PadPre
  * (D498: declared here so the stick-style helpers below can read it.) */
 static int naturalPitchMode = 1;                 /* Input.NaturalPitch */
 static int controlScheme = 0;                    /* D513 Input.ControlScheme: 0 Modern (port forces the style), 1 OG (the game's own selection is honoured) */
+/* D513 accessor (#145): watchsettings.c gates D564's pin of the game's own
+ * "Look up/down" value on this: in the Modern scheme the port's Invert
+ * look rows own the inversion; in Original the game's watch setting is
+ * the live control (the game honours it in bondview2's stick-pitch path),
+ * so it must stay user-settable there. */
+int inputControlScheme(void) { return controlScheme; }
+/* D645: Original scheme -- F10 "Invert look" mirrors the game's own
+ * "Look up/down" (watchsettings.c keeps the two in sync both ways). */
+static int padLookInvertY = 0;                   /* Input.PadLookInvertY: 1 = invert the look stick's Y (right stick in SOLITARE roles, left stick in HONEY roles -- #145) */
+int inputPadLookInvert(void) { return padLookInvertY; }
+void inputSetPadLookInvert(int v) { padLookInvertY = v ? 1 : 0; }
 static char padStr[MAX_PADS][PA_COUNT][32];      /* Input.Pad[N].<Action> */
 static char padStrKey[MAX_PADS][PA_COUNT][40];
+static char n64Str[MAX_PADS][NB_COUNT][32];      /* D643 Input.N64Pad[N].<Button> */
+static char n64StrKey[MAX_PADS][NB_COUNT][40];
+static int n64StickFeel = 1;                     /* D643 Input.N64StickFeel (Original only): 1 accurate, 0 the Modern deadzone/rescale */
 static PadTable padTabBuf[2];
 static void *padTabPub;                         /* published PadTable*; pointer-sized/aligned for SDL_Atomic{Get,Set}Ptr (D599) */
 static unsigned padTabSig = 0;
@@ -511,6 +551,21 @@ static void padBuildBinds(PadBinds *b, int seat, int custom, int *bad)
     for (int a = 0; a < PA_COUNT; a++)
         b->mask[a] = padParseMask(custom ? padStr[seat][a] : kPadAct[a].def, bad);
     if (!b->mask[PA_START]) b->mask[PA_START] = PSM(PS_START);   /* lockout guard: keep a pause path */
+    for (int n = 0; n < NB_COUNT; n++) b->n64[n] = 0;
+}
+
+/* D643: the Original table. Port actions are zeroed (nothing may inject
+ * use/reload/crouch/gadget/weapon-cycle); n64[] carries the buttons. Guards:
+ * Start unbound -> default; A and B both unbound -> both default (menu lockout). */
+static void padBuildN64(PadBinds *b, int seat, int *bad)
+{
+    for (int a = 0; a < PA_COUNT; a++) b->mask[a] = 0;
+    for (int n = 0; n < NB_COUNT; n++) b->n64[n] = padParseMask(n64Str[seat][n], bad);
+    if (!b->n64[NB_START]) b->n64[NB_START] = padParseMask(kN64Btn[NB_START].def, NULL);
+    if (!b->n64[NB_A] && !b->n64[NB_B]) {
+        b->n64[NB_A] = padParseMask(kN64Btn[NB_A].def, NULL);
+        b->n64[NB_B] = padParseMask(kN64Btn[NB_B].def, NULL);
+    }
 }
 
 /* D498: preset 3 is Custom; 4 = 1.4 Elektra is a fixed mapping, not custom.
@@ -559,6 +614,11 @@ static unsigned padComputeSig(void)
 {
     int anyCustom = 0;
     unsigned h = 2166136261u;
+    h = (h ^ (unsigned)controlScheme) * 16777619u;   /* D643 */
+    if (controlScheme)
+        for (int s = 0; s < MAX_PADS; s++)
+            for (int n = 0; n < NB_COUNT; n++)
+                for (const char *p = n64Str[s][n]; *p; p++) h = (h ^ (unsigned char)*p) * 16777619u;
     for (int s = 0; s < MAX_PADS; s++) {
         h ^= (unsigned)padPreset[s] * 16777619u;
         if (padPresetCustom(s)) anyCustom = 1;
@@ -584,7 +644,10 @@ static const PadTable *padTabGet(void)
         PadTable *cur = (PadTable *)SDL_AtomicGetPtr((void **)&padTabPub);
         PadTable *spare = (cur == &padTabBuf[0]) ? &padTabBuf[1] : &padTabBuf[0];
         int bad = 0;
-        for (int s = 0; s < MAX_PADS; s++) padBuildBinds(&spare->seat[s], s, padPresetCustom(s), &bad);
+        for (int s = 0; s < MAX_PADS; s++) {
+            padBuildBinds(&spare->seat[s], s, padPresetCustom(s), &bad);
+            if (controlScheme) padBuildN64(&spare->seat[s], s, &bad);   /* D643 */
+        }
         SDL_AtomicSetPtr((void **)&padTabPub, spare);
         padTabSig = sig;
         padTabValid = 1;
@@ -618,7 +681,7 @@ static u32 padActHeld(const PadBinds *b, u32 raw)
     return h;
 }
 
-typedef struct { int facePlayable; int slotNative; int southpaw; int tank; } PadMapCtx;
+typedef struct { int facePlayable; int slotNative; int southpaw; int tank; int orig; } PadMapCtx;   /* orig: D643 */
 typedef struct { unsigned button; int crouch; int gadgetEdge; u32 actHeld; } PadMapOut;
 
 /* The pure mapping: raw source bits + bindings + previous action state ->
@@ -629,6 +692,15 @@ static void padMapPure(const PadBinds *b, u32 raw, u32 actPrev, unsigned buttonI
                        const PadMapCtx *c, PadMapOut *o)
 {
     unsigned button = buttonIn;
+    if (c->orig) {   /* D643: strict virtual N64 pad; same in every context, no port actions, no southpaw swap */
+        for (int n = 0; n < NB_COUNT; n++)
+            if (raw & b->n64[n]) button |= kN64Btn[n].bit;
+        o->button = button;
+        o->crouch = 0;
+        o->gadgetEdge = 0;
+        o->actHeld = 0;
+        return;
+    }
     u32 held = padActHeld(b, raw);
     if (raw & b->mask[PA_FIRE] & PS_TRIGGERS) button |= GE_CONT_G;
     if (raw & b->mask[PA_AIM] & PS_TRIGGERS)  button |= GE_CONT_R;
@@ -1047,7 +1119,7 @@ static int padLookSensY    = 100;             /* right-stick look: vertical (pit
 static int padSouthpaw     = 0;               /* 1 = swap fire (G) / grenade (R) trigger actions */
 static int padLookSmooth   = 0;               /* right-stick look low-pass strength, 0-10 (0 = off, 10 = max) */
 static int padTriggerPct   = 25;              /* trigger press point, % of travel (~30*256) */
-static int padLookInvertY  = 0;               /* 1 = invert right-stick (look) Y */
+/* padLookInvertY: declared with the D513 accessors above (D645). */
 static int inputDefaultsRev = 0;              /* D546: 1 once the deadzone default migration ran */
 /* Per-pad look-smoothing EMA state (Wave A item 5), one X/Y pair per pad. Reset
  * on hot-unplug (inputRescanPads) so a smoothed value can't stick after the
@@ -1759,6 +1831,27 @@ void inputUpdate(void)
      * in case inputUpdate() is polled more than once between pad reads. */
     mouseDX += dx;
     mouseDY += dy;
+}
+
+/* D643 Input.N64StickFeel=1 (Original): the stick as a bare N64 pot. Linear
+ * 32767 -> STICK_MAX (80, the N64 range), a small centre deadzone and nothing
+ * else (no deadzone rescale, look sensitivity or smoothing). The ~7.6% centre
+ * (2500/32767) is an assumption of typical N64 stick dead-centre jitter --
+ * confirm against 1964 / the N64 manual. */
+#define N64_STICK_DZ 2500
+static int scaleAxis(int v, int dz);
+static int scaleAxisN64(int v)
+{
+    if (v > -N64_STICK_DZ && v < N64_STICK_DZ) return 0;
+    int out = (int)((long)v * STICK_MAX / 32767);
+    if (out >  STICK_MAX) out =  STICK_MAX;
+    if (out < -STICK_MAX) out = -STICK_MAX;
+    return out;
+}
+/* Modern/legacy deadzone scaling, or the accurate N64 response in Original. */
+static int padStickAxis(int v, int dz)
+{
+    return (controlScheme && n64StickFeel) ? scaleAxisN64(v) : scaleAxis(v, dz);
 }
 
 static int scaleAxis(int v, int dz)
@@ -2481,7 +2574,7 @@ static unsigned inputComputePadSlot(int idx, signed char *stick_x, signed char *
          * combined edges prevent a held input from repeatedly using a door.
          * In menus/watch/tank the pad keeps native accept/cancel buttons. */
         SDL_GameController *slot0Pad = slotPad(0);
-        u32 slot0Held = slot0Pad ? padActHeld(&padTabGet()->seat[padSeatForSlot(0)], padReadRaw(slot0Pad)) : 0;
+        u32 slot0Held = (slot0Pad && !controlScheme) ? padActHeld(&padTabGet()->seat[padSeatForSlot(0)], padReadRaw(slot0Pad)) : 0;
         int padUse = (slot0Held & (1u << PA_USE)) != 0;       /* D469: bound actions (Jinx 1.1: A / X) */
         int padReload = (slot0Held & (1u << PA_RELOAD)) != 0;
         int useNow = scriptIsActive(0) ? scriptSlots[0].use : (actHeld(ks, IA_CANCEL) || padUse);
@@ -2880,11 +2973,11 @@ static unsigned inputComputePadSlot(int idx, signed char *stick_x, signed char *
         if (!padMenuMode && stickSwap(idx)) { int tx = lx, ty = ly; lx = rx; ly = ry; rx = tx; ry = ty; }   /* D518 */
 
         if (padMenuMode) {
-            int px = scaleAxis(lx, padDeadzoneL);
-            int py = -scaleAxis(ly, padDeadzoneL);       /* SDL up = negative -> N64 up = positive */
+            int px = padStickAxis(lx, padDeadzoneL);   /* D643: accurate N64 response in Original */
+            int py = -padStickAxis(ly, padDeadzoneL);    /* SDL up = negative -> N64 up = positive */
             if (px) sx = px;
             if (py) sy = py;
-        } else if (styleIsSolitare(idx)) {   /* D498, D513, D518 */
+        } else if (!controlScheme && styleIsSolitare(idx)) {   /* D498, D513, D518; D643: Original never swaps roles (left stick = analog stick, right = C) */
             /* D194/D238: SOLITARE swaps stick roles -- left stick becomes
              * digital-step movement (same analog-for-movement tradeoff as
              * the keyboard remap above), right stick becomes continuous
@@ -2934,13 +3027,23 @@ static unsigned inputComputePadSlot(int idx, signed char *stick_x, signed char *
                 if (rys) sy = rys;
             }
         } else {
-            int px = scaleAxis(lx, padDeadzoneL);
-            int py = -scaleAxis(ly, padDeadzoneL);       /* SDL up = negative -> N64 up = positive */
+            int px = padStickAxis(lx, padDeadzoneL);   /* D643: accurate N64 response in Original */
+            int py = -padStickAxis(ly, padDeadzoneL);    /* SDL up = negative -> N64 up = positive */
+            /* #145: in the HONEY role the LEFT stick is the look stick (1.1/
+             * 1.3 -- and, after the D498/D518 physical swap for 1.3 Frost,
+             * this channel carries the physical right stick, the 1.3 look
+             * stick). Inverting it, not the right stick (which is the digital
+             * movement C-button source in this role), is what makes F10's
+             * "Invert look" affect in-game vertical aim under the game's own
+             * original styles. The SOLITARE branch above already inverts its
+             * (look) right-stick channel. */
+            /* D645: not in Original -- there the game's own "Look up/down"
+             * (mirrored from this row by watchsettings.c) inverts natively. */
+            if (padLookInvertY && !controlScheme) py = -py;
             if (px) sx = px;
             if (py) sy = py;
             if (idx == 0 && (px || py)) s_aimDevMouse = 0;   /* D337: pad aim active */
 
-            if (padLookInvertY) ry = -ry;
             if (rx >  RSTICK_THRESHOLD) button |= GE_CONT_F;
             if (rx < -RSTICK_THRESHOLD) button |= GE_CONT_C;
             if (ry >  RSTICK_THRESHOLD) button |= GE_CONT_D;
@@ -2958,6 +3061,7 @@ static unsigned inputComputePadSlot(int idx, signed char *stick_x, signed char *
             pc.facePlayable = (idx == 0 || inputMpSplit()) && inputCanUseGameplayActions(padMenuMode);
             pc.slotNative = (idx > 0 || inputMpPadsOwnP1());
             pc.southpaw = padSouthpaw;
+            pc.orig = controlScheme;   /* D643 */
             pc.tank = !pc.facePlayable && idx == 0 && !padMenuMode && g_PlayerIsInTank == 1 &&
                       slotPlayer() && slotPlayer()->outside_watch_menu && !slotPlayer()->pause_state;
             const PadBinds *pb = &padTabGet()->seat[padSeatForSlot(idx)];
@@ -4004,6 +4108,64 @@ static void padMapSelfTest(void)
     sysLogPrintf(LOG_INFO, "GE_PADMAPTEST: binding API round trip (%d) clear keeps slot (%d) [%s]", c10, c11, padStr[1][PA_FIRE]);
     fail += !(c10 && c11);
 
+    /* D643: Original = strict virtual N64 pad. Per-source table (identical in
+     * stage / menu / tank), then remap, per-seat independence, guards. */
+    {
+        static const unsigned exp[PS_COUNT] = {
+            [PS_A] = GE_CONT_A, [PS_B] = 0, [PS_X] = GE_CONT_B, [PS_Y] = 0,
+            [PS_LB] = GE_CONT_L, [PS_RB] = GE_CONT_R, [PS_LS] = 0, [PS_RS] = 0,
+            [PS_START] = GE_CONT_START, [PS_DUP] = GE_CONT_UP, [PS_DDOWN] = GE_CONT_DOWN,
+            [PS_DLEFT] = GE_CONT_LEFT, [PS_DRIGHT] = GE_CONT_RIGHT,
+            [PS_LT] = GE_CONT_R, [PS_RT] = GE_CONT_G };
+        char savedN[MAX_PADS][NB_COUNT][32];
+        int savedCs = controlScheme, savedSouth = padSouthpaw, o1 = 1, o2 = 1, o3 = 1;
+        memcpy(savedN, n64Str, sizeof(savedN));
+        controlScheme = 1;
+        padSouthpaw = 1;   /* must be ignored in Original */
+        for (int s2 = 0; s2 < MAX_PADS; s2++) {
+            padPreset[s2] = 0;
+            for (int n = 0; n < NB_COUNT; n++) snprintf(n64Str[s2][n], sizeof(n64Str[0][0]), "%s", kN64Btn[n].def);
+        }
+        padTabValid = 0;
+        const PadTable *ot = padTabGet();
+        for (int src = 0; src < PS_COUNT; src++)
+            for (int cx = 0; cx < 3; cx++) {   /* playable / menu / tank */
+                PadMapCtx c = { cx == 0, 1, 1, cx == 2, 1 };
+                padMapPure(&ot->seat[0], PSM(src), 0, 0, &c, &o);
+                int ok = o.button == exp[src] && !o.crouch && !o.gadgetEdge &&
+                         padActHeld(&ot->seat[0], PSM(src)) == 0;
+                o1 &= ok;
+                sysLogPrintf(ok ? LOG_INFO : LOG_ERROR, "GE_PADMAPTEST: original %-13s %-8s -> %04x (want %04x)",
+                             kPadSrc[src].name, cx == 0 ? "playable" : cx == 1 ? "menu" : "tank", o.button, exp[src]);
+            }
+        { PadMapCtx c = { 1, 0, 0, 0, 1 }; padMapPure(&ot->seat[0], PSM(PS_RT) | PSM(PS_A), 0, 0, &c, &o); o1 &= o.button == (GE_CONT_G | GE_CONT_A); }
+        /* remap: seat 1 B := y,b and CUp := b; seat 0 untouched */
+        snprintf(n64Str[1][NB_B], sizeof(n64Str[0][0]), "y,b");
+        snprintf(n64Str[1][NB_CU], sizeof(n64Str[0][0]), "rightstick");
+        /* guards: seat 2 Start none; seat 3 A and B both none */
+        snprintf(n64Str[2][NB_START], sizeof(n64Str[0][0]), "none");
+        snprintf(n64Str[3][NB_A], sizeof(n64Str[0][0]), "none");
+        snprintf(n64Str[3][NB_B], sizeof(n64Str[0][0]), "none");
+        ot = padTabGet();
+        PadMapCtx oc = { 1, 0, 0, 0, 1 };
+        padMapPure(&ot->seat[1], PSM(PS_Y), 0, 0, &oc, &o);  o2 &= o.button == GE_CONT_B;
+        padMapPure(&ot->seat[1], PSM(PS_B), 0, 0, &oc, &o);  o2 &= o.button == GE_CONT_B;
+        padMapPure(&ot->seat[1], PSM(PS_X), 0, 0, &oc, &o);  o2 &= o.button == 0;
+        padMapPure(&ot->seat[1], PSM(PS_RS), 0, 0, &oc, &o); o2 &= o.button == GE_CONT_E;
+        padMapPure(&ot->seat[0], PSM(PS_X), 0, 0, &oc, &o);  o2 &= o.button == GE_CONT_B;
+        padMapPure(&ot->seat[0], PSM(PS_Y), 0, 0, &oc, &o);  o2 &= o.button == 0;
+        padMapPure(&ot->seat[2], PSM(PS_START), 0, 0, &oc, &o); o3 &= o.button == GE_CONT_START;
+        padMapPure(&ot->seat[3], PSM(PS_A), 0, 0, &oc, &o);  o3 &= o.button == GE_CONT_A;
+        padMapPure(&ot->seat[3], PSM(PS_X), 0, 0, &oc, &o);  o3 &= o.button == GE_CONT_B;
+        int st = scaleAxisN64(2499) == 0 && scaleAxisN64(32767) == STICK_MAX && scaleAxisN64(-32768) == -STICK_MAX &&
+                 scaleAxisN64(16384) == 40 && padStickAxis(5000, 7500) == scaleAxisN64(5000);
+        sysLogPrintf(LOG_INFO, "GE_PADMAPTEST: original table (%d) remap/seat-independence (%d) unbound-fallback (%d) stick (%d)", o1, o2, o3, st);
+        fail += !(o1 && o2 && o3 && st);
+        controlScheme = savedCs;
+        padSouthpaw = savedSouth;
+        memcpy(n64Str, savedN, sizeof(savedN));
+    }
+
     memcpy(padStr, saved, sizeof(saved));
     memcpy(padPreset, savedPreset, sizeof(savedPreset));
     padTabValid = 0;
@@ -4025,6 +4187,15 @@ PD_CONSTRUCTOR static void inputConfigInit(void)
             snprintf(padStr[seat][a], sizeof(padStr[seat][a]), "%s", kPadAct[a].def);
             configRegisterString(padStrKey[seat][a], padStr[seat][a], sizeof(padStr[seat][a]));
         }
+    /* D643 (#145/#149): Original-scheme N64 button map, per seat (seat 1 = Input.N64Pad.<B>, seats 2-4 = Input.N64Pad2/3/4.<B>). */
+    for (int seat = 0; seat < MAX_PADS; seat++)
+        for (int n = 0; n < NB_COUNT; n++) {
+            if (seat == 0) snprintf(n64StrKey[seat][n], sizeof(n64StrKey[seat][n]), "Input.N64Pad.%s", kN64Btn[n].key);
+            else           snprintf(n64StrKey[seat][n], sizeof(n64StrKey[seat][n]), "Input.N64Pad%d.%s", seat + 1, kN64Btn[n].key);
+            snprintf(n64Str[seat][n], sizeof(n64Str[seat][n]), "%s", kN64Btn[n].def);
+            configRegisterString(n64StrKey[seat][n], n64Str[seat][n], sizeof(n64Str[seat][n]));
+        }
+    configRegisterInt("Input.N64StickFeel", &n64StickFeel, 0, 1);
     configRegisterInt("Input.MPMode", &mpInputMode, 0, 2);   /* D416: 0 Auto, 1 PadsOnly, 2 KbmP1 */
     configRegisterInt("Input.MouseEnabled", &mouseEnabled, 0, 1);
     configRegisterInt("Input.CrosshairCursor", &cfgCrosshairCursor, 0, 1);   /* D555 */

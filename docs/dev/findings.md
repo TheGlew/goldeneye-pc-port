@@ -733,6 +733,8 @@ covers D24–D69; the log continues in §H (D32 procedure, D70–D121).
 | D583 | **120 fps + VSync on G-Sync/VRR: fullscreen black frames + OLED VRR flicker from the interpolation present scheduler.** Black frames fixed (VSync presents wait for their slot time; slot grid uses the reported refresh, not the measured swap gap). The OLED flicker was the present cadence (8% of ticks got 1 slot, early/late gap pairs, dropped slots); fixed by one continuous present grid snapped to tick/N, an 8-slot present ring (no drops), a capped draw-time peak for the ready time, and showing a waiting present before the next frame's draw. 120.0 presents/s, 99%+ of gaps in 7-9.5 ms. | FIXED on PC 2026-10-09 (G-Sync OLED, maintainer by eye); Deck 90 good on most levels (per-level pass 2026-10-10); open: Bunker fight draw cost, Jungle feel (see 2026-10-10 addendum) |
 | D584 | **Cradle catwalk shadow flicker at every frame rate (regression from D579).** D579 stopped cull-testing triangles with a vertex behind the camera; Cradle's translucent two-faced catwalk walls then drew both faces. Fix: mixed-w triangles get the homogeneous facing test det[x y w] (no division by w), identical in sign to the pre-D579 XOR flip but well-conditioned. #150 stays fixed (its real fix was the D543 camera-plane clip). | FIXED 2026-10-10 (maintainer Deck: Cradle clean, Dam wall-hug clean) |
 | D614 | **Deck Bunker fight texture-cache thrash: CI8 keys hashed leftover palette entries past a partial TLUT load, so the same image re-imported whenever draw order changed (1,000-4,000 evictions per 10 s).** A loaded-extent CI8 key cut re-imports 60-70% but changed neither import time (-7%) nor pacing, and 84-315 texels per run index past the extent (fidelity risk): reverted. Not the cause of the fight drops; D583 present scheduling remains the lead. | OPEN: measured, fix not shipped (2026-10-10) |
+| D605 | **Issue #145 (v0.6.0): F10 "Invert look" never reached the look stick in the HONEY role (game styles 1.1/1.3 -- left stick looks, right stick is the digital movement C-button source), so it was inert under the game's own original styles; and the D564 pin of the game's own watch "Look up/down" stayed on in Original mode, locking the player's native in-game control** — full `## D605` entry at file tail | FIXED 2026-10-09 (v0.6.0 line; port-only: the HONEY branch inverts the left (look) channel instead of the right, the D564 pin is lifted in the Original scheme so the watch row is live again; build green, the #145 maintainer/user live pad pass owed) |
+| D606 | **Issue #144 (v0.6.0 triage): no on-screen mission timer; added the optional PD-style always-visible timer reading the game's own mission clock** — full `## D606` entry at file tail | FIXED 2026-10-09 (v0.6.0 line; port-only in `port/src/optionsoverlay.c`, `src/game` zero-diff; off by default so goldens stay byte-identical; smoke-verified: a 1200-frame @60 run shows "TIME 0:20" — the timer tracks the game clock exactly; live multi-minute level pass owed) |
 | D407 | **Tanks cannot be boarded/exited on PC — the v0.4.0 use/reload split (D378/D393) removed the B-button tap the engine's tank handlers in `bondview2.c` consume (user report 2026-09-28, Runway/Streets)** — full `## D407` entry at file tail | **CLOSED (2026-09-28 bookkeeping: tank board/exit accepted by the user; shipped in v0.4.0).** Earlier: PARTIAL (fix landed in v0.4.0, port-only): present `GE_CONT_B` on the use (E / pad A) rising edge only while `g_PlayerIsInTank == 1` or `g_BondCanEnterTank != 0`; E keeps its D378 no-reload-fallback semantics elsewhere, N64 layout unaffected. D407(b) same cycle: front PC Options page-edge highlight clamp + mouse-wheel / W-S paging (wheel queue consumed on the menu, D223); its wheel mapping shipped inverted and was fixed to match W/S (wheel up = step up). D407(c): board-animation lockout, menu-accept B gate in tank states, in-tank aim routed through the legacy velocity stick + `Input.TankAimScale` knob. RESOLVED 2026-09-28: all port-only (src/game zero-diff), 10 TANKDBG probes stripped, release binary verified clean, user live tank drive signed off (board + exit OK, aim feel good). |
 | D408 | **`Game.SkipIntro` skips the post-mission failure dossier: with it on, entering a level then aborting (watch Z+A) or dying (KIA) returns straight to the menus — no REPORT / "Mission status: KILLED IN ACTION / ABORTED" screen** (user report 2026-09-28; save/AllUnlocked ruled out) — full `## D408` entry at file tail | FIXED 2026-09-30 (SkipIntro hook gated to first boot; live dossier check owed). |
 | D415 | **Shooting a light fixture does not "kill" its flickering light (Bunker, Caverns): the fixture takes the hit but the flicker keeps going (community report, issue #87 comment by the reporter, 2026-09-28, 00 Agent playthrough of v0.4.0).** — full `## D415` entry at file tail | FIXED (2026-09-29 bookkeeping: root-caused and fixed as D430 + D431, user-verified vs GEPD/1964 on Caverns 2026-09-29; #119). Earlier: ROOT-CAUSED as D430 (see there); fix in tree, live check owed. |
@@ -850,6 +852,27 @@ covers D24–D69; the log continues in §H (D32 procedure, D70–D121).
 | D450 | **Unplugging and replugging a controller was not picked up (user, GameSir-G7 Pro; 2026-09-29).** — full `## D450` entry at file tail | FIXED — port-only: the render thread's `gfx_sdl_handle_events` drains the same SDL queue as video.c's host pump but had no case for `SDL_CONTROLLERDEVICEADDED/REMOVED`, so it usually swallowed them and `inputRescanPads` never ran. Both pumps now post a request; the rescan runs at the top of `inputUpdate`, on the thread that reads the pads. |
 | D436 | **Persistent (hipfire) crosshair, opt-in: `Video.CrosshairPersistent` / F10 > Gameplay > HUD > "Crosshair when not aiming" draws the native sight at `crosshair_angle` outside aim mode (2026-09-29).** — full `## D436` entry at file tail | FIXED (shipped 2026-09-29; rule-2 sign-off: user direction; presentation-only masked condition in `gunDrawSight` + `port/src/video.c`). Default off byte-identical; aim mode unchanged; netplay SH identical mixed off/on. |
 
+| D617 | **The HD pack's `ge007.tdb` is the emulator's full per-draw key list, not the pack's PNG list — non-CI rice keys are per draw tile, so the join needs display-list tile parameters** — ROADMAP #100 rice-pack stage (tooling); full `## D617` entry at file tail | OPEN — plan written (`docs/dev/TEXPACK-RICE-DRAW-PLAN.md`); whole-texture recipe confirmed correct by 9 tdb hits with exact `;WxH` agreement; PNG-filename and brute-force param searches are dead ends |
+| D618 | **The community HD pack's non-CI keys are per-draw rects partly unreachable from N64 tile state (`440x1` strips), and a rect key cannot land in the whole-texture pack format — the rice-pack route stops here** — ROADMAP #100 rice-pack stage; full `## D618` entry at file tail | STOPPED 2026-10-06 — tdb `;WxH` are per-draw rects (440x1 ×301 over tmem's 128-byte pitch = recompile-side); ~100 byte-domain variants score 0 hits; content-join does not discriminate; rect-keyed replacement would be a format extension. HD/custom texture support ships on the texnum path |
+| D619 | **The community HD pack's remaining 1790 PNGs are blocked by four independent causes (recompile-side rect keys, wrong hash domain, rect-vs-whole-texture format, content outside the identity space) — #100 status written up** — ROADMAP #100; full `## D619` entry at file tail, current status in `docs/dev/TEXPACK-STATUS.md` | WRITTEN UP 2026-10-06 — brute-force rect join 14.6M positions / 0 hits (three stride models); pack taxonomy puts 822 PNGs in UI/Hacks classes the engine never registers; ceiling ~1200 of 2046 via an unmeasured level-scoped content join; 256 import today |
+| D620 | **The HD pack's non-CI keys hash the pack's own re-encoded content — no vanilla/recompile byte domain produces them; the join must come from external signals (level folder + tile geometry)** — ROADMAP #100 rice-pack stage; full `## D620` entry at file tail | MEASURED 2026-10-07 — xdelta "plus" ROMs unusable (32 MB, 98 % diff, unparseable at imagelist offsets; prior recomp probes void); vanilla 953 non-CI keys → 0 tdb hits, pack 1491 `_all` keys → 0 vanilla hits, 541 pack palcrcs → 3 vanilla matches (HD palettes regenerated); joined-pair scale factors 4×–128× (dims join dead) but folder→level mapping holds (257 pairs / 21 folders); B2 rewritten, B4 narrowed (sprite-bank UI/Effects art is registered via texLoad) |
+| D621 | **The PD dabs-mod texture-pack notes mine: the HD route stays texnum-keyed — the PD port's key layer transfers nothing (its keys hash ROM bytes we hold; this pack's hash 1964tech's build, D620), but its format layer is a ready fix list; end-to-end plan lands** — ROADMAP #100; full `## D621` entry at file tail, plan in `docs/dev/TEXPACK-PLAN.md` | PLAN LANDED 2026-10-07 — Phase A (pad contract / alpha repair / F10 row / stall / manifest / merge), Phase B (B0 sprite-bank GE_TEXNUMDUMP confirmation → B1 folder→level → B2 per-level GDL census → B3 ambiguity gate → B4 content scorer → B5 review viewer), Phase C (join output as NNNN.png + per-level A/B); next task B0 |
+| D622 | **B0 sprite-bank confirmation — the `Effects`/`UI` sprite-bank texnums register and draw (explosion/smoke banks 2081–2196, crosshair 2236, front-end art 2194–2628), so those PNGs stay in the join scope; the unregistered residue is exactly the known in-exe art (font glyphs + fire particles); Phase B continues to B1–B3** — ROADMAP #100 Phase B0 (`docs/dev/TEXPACK-PLAN.md`); full `## D622` entry at file tail | PASS 2026-10-07 — two human-driven `GE_TEXNUMDUMP`+`GE_TEXDUMP` runs (front end 377 unique texnums / 521 dumps, `-level_09` combat 321 / 316; evidence `scratch/b0/`): Effects/Explosion+Smoke banks and UI/Crosshair registered at `texLoad` and drawn; `UI/Gunbarrel` PNGs are gun model textures (not a sprite bank), `UI/Letters`+`UI/Ammo` = in-exe fonts (out of plan); `GE_TEXNUMDUMP` log now flushes per line (was lost on force-kill); next: B1–B3 |
+| D623 | **Phase B1–B3 measured: the folder→level mapping holds (241/244 Areas containment with the model pool) and model DLs carry the G_NOOP texnum convention, but the B3 ambiguity gate fails — median 104 candidates/PNG, so the geometric tier is B5 human-in-loop** — ROADMAP #100 Phase B1–B3 (`docs/dev/TEXPACK-PLAN.md`); tooling `tools_pc/texpack/{level,model}_census.py` + `ambiguity_report.py`; full `## D623` entry at file tail | MEASURED 2026-10-07 — B1: 15 pack Areas folders mapped via kSoloLevels/bg.c (+2 mission offset from Statue; Bunker→09+27, Surface→36+43); bg-only containment 173/257, +model pool (new: model segs carry G_NOOP texnums, 510 models / 1462 texnums) → 241/244 Areas. B3 (pow2 scale set learned from the 251 joined pairs; 32×/64× dominate): ex-Hacks 1781 PNGs → 515 zero-cand (29 %, mostly `UI` 454 = the known in-exe fonts), 44 in 1–3, 60 in 4–20, 1162 >20 (65 %); median 104 → gate = B5 for the geometric tier; decision owed: B4 scorer budget (1162 × ~100 cands) vs B5 tail vs both |
+| D624 | **B4 content scorer built + tuned: the structural RGB-NCC scorer (dither-blurred, palette-invariant) beats CLIP on this pack — rank-1 56 % vs 33 % on the 257 ground-truth pairs; auto-accept tier at margin ≥ 0.10 is 100 % precise on GT; pipeline produces the human queue (189 auto / 1341 vision-pending / 515 out-of-scope)** — ROADMAP #100 Phase B4 (`docs/dev/TEXPACK-PLAN.md`); tool `tools_pc/texpack/content_scorer.py` (rank/tune/verdicts/apply); full `## D624` entry at file tail | BUILT 2026-10-07 — 5-stage pipeline (geometric prefilter → content rank → GT-tuned auto-accept → vision judge → human queue) per the 2026-10-07 decision (commits 512e6d57, 95d38637). Scorers measured on 255 in-scope GT pairs: CLIP ViT-B/32 33 % rank-1 (ViT-L/14 no better); structural 3-channel NCC + 1/2× LANCZOS dither-blur 56 % rank-1 / 67 % rank-≤5 → adopted (CLIP kept as `--scorer clip` A/B). Margin-vs-precision on GT: 100 % down to t≈0.05 (97/255 @ 0.10, 61/255 @ 0.20); recommended t=0.10. Verdicts @ 0.10: 189 auto (47 geometric n≤3 + 142 margin), 1341 vision-pending (contact sheets + answers.csv template under `scratch/join_review/`), 515 out-of-scope; `apply` merges vision answers → `queue.csv` + `queue/` sheets (verified). Stop point honoured: queue produced, Phase C not started. Evidence: `scratch/join_ranked.csv`, `scratch/join_verdicts.csv`, `scratch/join_review/`, caches `scratch/{clip_tex,clip_pack}_cache.npz` + `scratch/ncc_van_cache.pkl` |
+| D625 | **texpack A5: downscale-to-GL-max instead of the D615 vanilla fallback, plus first-use decode-stall metering** — a pack image over the GL max (12 of 256 community files are 2048/3072/4096) used to drop to the vanilla texture, silently killing the HD look on low-end GPUs; now one separable LANCZOS3 resize (radius 3, weight-renormalised at edges) into a lazily-grown dw×sh work buffer yields the largest size the GPU holds, one-time per file through the existing cache; the only fallback left is OOM/degenerate GL max < 2 (logged ≤8 lines). Stall meters (render-thread only): total/worst-file decode ms, per-frame accumulation committed at a new `gfx_start_frame` hook (`texpackFrameStart`, inert without a pack), evictions; summary every 16th decode and every decode > 5 ms, `fflush`'d (D622-class). `GE_FAKEMAXTEX=<n>` test hook registered in `docs/dev/GE-ENV-PROBES.md`. Port-only: `port/fast3d/gfx_pc.cpp`, `port/src/texpack.c`, `port/include/texpack.h`; full `## D625` entry at file tail | BUILT 2026-10-10, not yet A/B-verified — downscale path needs a `GE_FAKEMAXTEX` pack run + low-end pass; stall meters need one pack run for the first-use spike shape. **Label note: D621–D625 on `feature/texpack` collide with the mainline allocation; renumbered to the next free numbers at land time** |
+| D626 | **Windows DPI awareness was never declared: the hint sat behind PD's `PLATFORM_WIN32`, never defined here, so scaled displays got a stretched logical-size surface** (3072x1728 on a 125 % 4K panel) | FIXED 2026-10-10 (`gfx_sdl2.cpp`: `_WIN32` guard, `permonitorv2` always); fullscreen now native 3840x2160, Facility golden PASS; maintainer by-eye owed |
+| D627 | **DexDrive / GameFAQs `.n64` saves import directly: the GE note (game code `3BADD1E5`) is pulled from the Controller Pak dump, zero-padded to 2048 B and handed to the D514 emulator-save importer** | FIXED 2026-10-10 (`eepimport.c` + `eep_convert.py dexdrive-to-pc`); byte-identical to the reference extraction, malformed inputs rejected untouched; by-eye mission select owed |
+| D628 | **The exact-CRC CI half of the GoldenEye-007-HD join is sound (256 texnums, independently re-verified), but its structural half was scored against `GE_TEXDUMP` captures taken *with a pack selected* — the dump is the pack image, so the hold-out was circular and the "same-size replacement" premise it produced is false (packs are 4x-128x upscales, D620)** — ROADMAP #100; join table `tools_pc/texpack/gehd_join.csv`, tooling `tools_pc/texpack/gehd_{join,build}.py`; full `## D628` entry at file tail | CI HALF ACCEPTED 2026-10-10 (256/256 `(crc,fmt,siz)` agreement with the rice census, 256 distinct texnums, palette-variant collision resolved by ROM palcrc, builder resolves all 256 sources); structural half VOID (same-size gate admitted only the 52 contaminated dumps, so "0 matches" was unmatchable rather than rejected; gate rebuilt aspect-ratio/integer-scale aware); no per-level dump runs needed - the non-CI route is D624 python-decoded vanilla renders + its existing human/vision queue |
+| D632 | **Exit BSOD 0x119 recurred (2026-10-10) despite D344; the first minidump shows it fires in the kernel's process-exit GPU cleanup (`DXGPROCESS::Destroy` -> `DXGCONTEXT::DestroyContext` -> `VidSchTerminateHwQueue` -> `VidSchiDecrementHwQueueReference`, HAGS on), i.e. on the GL context the port leaves for the kernel to destroy** - `port/fast3d/gfx_sdl2.cpp`, `port/src/video.c`, `port/src/main.c`; full `## D632` entry at file tail | FIX BUILT 2026-10-10 (`fix/d632-exit-teardown`): the atexit handler deletes the GL context and window while the process is alive (only when the render thread parked). Not run-verified (game runs on hold); maintainer exit checks owed |
+| D636 | **Non-CI pack textures ARE fingerprint-keyed: the D617/D620 census only alt-row-swapped explicit-LOD textures, but the game swaps every texture (D149); swapping all gives 203 exact non-CI joins (was 17), and those overrule 30 picture-join picks (near-identical variants on the wrong texnum, e.g. 948/949, 35/36, 284/307)** - `tools_pc/texpack/rice_nonci.py`, `gehd_join.py nonci`, `gehd_join.csv` (+203 rows); full `## D636` entry at file tail | FIXED 2026-10-10 (`feat/texpack-fp`): exact join 256 CI + 203 non-CI = 459 texnums; local pack rebuilt exact-first (511 files) |
+| D637 | **Fingerprint fallback in the loader: a texture with no texture number is keyed by RiceCRC32 over its loaded texels and replaced from `<pack>/fp/GOLDENEYE#crc#fmt#siz...png` - brings in the menu/HUD font (188 glyphs, D635)** - `port/src/texpack.c`, `port/fast3d/gfx_pc.cpp`, `tools_pc/texpack/gehd_build.py --fp`; full `## D637` entry at file tail | BUILT 2026-10-10 (`feat/texpack-fp`); C CRC == Python on 80 ROM glyphs; not run-verified (game runs on hold) |
+| D638 | **HD-pack ammo icon cut off: the draw normalises texture coordinates by the padded TMEM line (a 5-texel RGBA32 icon is sampled as 8 wide), but the pack image holds only the visible texels, so it was stretched and cropped** - `port/fast3d/gfx_pc.cpp` (import_texture pack upload); full `## D638` entry at file tail | FIXED 2026-10-10 (`chore/v070-agentic-batch`): the pack image is placed on a canvas padded in the same proportion (edge texels replicated); headless Dam run: 5x12 -> 8x12, 5x28 -> 8x28, 54x54 -> 56x54, HUD cartridge renders whole |
+| D639 | **Exclusive fullscreen picked the wrong resolution: `SDL_WINDOW_FULLSCREEN` switches the monitor to the window's display mode, which SDL derives from the current window size when none is set** - `port/fast3d/gfx_sdl2.cpp` `set_fullscreen`; full `## D639` entry at file tail | FIX BUILT 2026-10-10 (`chore/v070-agentic-batch`): exclusive fullscreen now sets the desktop mode of the window's display first; maintainer check owed (NVIDIA "Prefer native") |
+| D643 | **Issues #145 (b)(c) / #149: in the Original control style the pad was not a virtual N64 controller -- port actions (dedicated use/reload, crouch, gadget cycle, prev-weapon) and a fixed menu lockout (West = B-equivalent accept) were layered on, so one button could open a door AND reload, and West accepted instead of going back** — full `## D643` entry at file tail | FIXED 2026-10-12 (port-only; GE_PADMAPTEST PASS; maintainer pad pass vs the #145/#149 reports; 1:1 N64-pad stick check owed when an adapter is available) |
+| D644 | **File-select royal crest drew on an opaque dark square (#146): IA4 decoded as I2:A2 instead of the RDP's I3:A1** — full `## D644` entry at file tail | FIXED 2026-10-12 (`import_texture_ia4`; 1964-confirmed symptom, maintainer-verified; Win sweep unchanged) |
+| D645 | **Original 1.1: F10 "Invert look" did not invert vertical look (#145 a): D605 flipped the move stick; the game's own Look up/down drives C-button/aim pitch** — full `## D645` entry at file tail | FIXED 2026-10-12 (F10 row and watch row synced in Original; maintainer-verified) |
+| D646 | **F10 dropdown popup drew over the hint/tooltip panel (popup bounded by the screen edge, not the settings box)** — full `## D646` entry at file tail | FIXED 2026-10-12 (`ddGeom` bounded to the box; maintainer-verified) |
 
 Phase 2 replaced the Phase-1 demo loop with the real `mainproc()` on real OS
 threads, compiled GE's real `src/sched.c`, and brought in PD's fast3d software
@@ -18855,6 +18878,21 @@ Build-verified only, not run (confidence medium). `Video.FpsCap = -1` is the new
 
 **Release strip (2026-10-10, v0.5.1):** the `d578_live` live-word file and every word it read, `holecap`, `burst` capture, `tristat`, `GE_INTERP_SELFCHECK`, `GE_INTERPPORTAL_CHECK`, PROJDIAG, the `GE_INTERPSCIS_*` / `GE_INTERPSCISSOR` / `GE_INTERPGATE_ABFILE` knobs and the matrix-counting set-change check (`GE_INTERPSET_*`, which only ran with `mvblend`) were removed; each site collapsed to its default branch (clip widening off, replay box unioned with the game box, in-place restart on, glFinish skipped under gamescope). Kept: the 10 s stats lines, `D583 SLOW`, IPLOG/`GE_INTERPLOG`, `GE_INTERPCLIP_ON`, `GE_INTERPFALLBACK_*`, `GE_INTERP_FAST_TURN`, `GE_INTERPROOM/REACH_OFF`, `GE_INTERPPORTAL_OFF/_UNION`. The removed switches are in `feat/d583-deck90` history for a future debug build.
 
+### D578 addendum (2026-10-13): Auto follows the display up to 240; 165 and 240 in the menu
+
+Maintainer ask (v0.6.0 release day): allow 240 and let Auto follow the user's display. The old Auto clamp
+of 144 had no recorded reason; it was the top menu entry when Auto was added. The real ceiling is the
+present ring: `IP_SLOTS` 8 with `maxN = IP_SLOTS / 2` (libultra.c) gives at most 4 presents per sim tick,
+i.e. 240 NTSC / 200 PAL. `videoAutoFpsCap()` now returns the refresh clamped to `4 * vi` (was 144), and
+`kFpsCapSeq` gains 165 and 240. A display above 240 Hz holds at 240 under Auto (raising it needs a bigger
+ring and the matching FBO slots, `GFX_INTERP_SLOTS`). A separate "uncapped" entry was not added: presents
+are paced to the refresh (VSync or the compositor), so uncapped interpolation = Auto, and `FpsCap 0`
+stays the old non-interpolated path (D186). Slow GPUs are already covered by the per-frame `s_ipPassEma`
+pass reduction. Verified on the dev box (120 Hz panel), Dam, 30 s, `GE_INTERP_FORCE=1 FpsCap=240`: with VSync
+on, swap-driven at 120 (2 slots/tick, as before); with VSync off, timer-paced 240.0 presents/s, 4 slots/tick
+on 600/600 frames, 0 dropped after warm-up, draw peak < 1 ms, clean GE_QUITFRAME exit. Not yet seen on a
+real 165/240 Hz panel -- confidence medium-high.
+
 ## D579: Issue #150 "geometry disappears when too close" -- FIXED: the D543 CPU near clip cut at the near plane under GL_DEPTH_CLAMP; now cuts at the camera plane (2026-10-08, fixed 2026-10-09)
 
 **Status: FIXED 2026-10-09 (maintainer-verified at the Dam gate in 16:9, floor haze intact; golden sweep owed). Root cause and fix: see "Resolution" at the end of this entry. Everything between here and there is the superseded investigation record (the cull was never the cause).**
@@ -18910,10 +18948,13 @@ Build-verified only, not run (confidence medium). `Video.FpsCap = -1` is the new
 - Fix: `#ifdef PORT` macro `REUSE_PDTYPE` reads `PropDefHeaderRecord::type`. No logic change.
 - Siblings: grepped `src/game` for `(u8)x[0]` type reads; only cleanup_objects.c (already fixed, D139) and this function.
 - Confidence: high on cause (matches RAX/fault signature); runtime verification owed (hat-spawning guard AI).
+- **Runtime check (2026-10-13, Windows, temporary probe, since removed):** at each level's first render, walked `g_CurrentSetup.propDefs` with the true stride and compared the fixed read (`PropDefHeaderRecord::type`) with the old `(u8)cmd[0]`, then called `setupFindObjForReuse(PROPDEF_HAT, ...)` with musthaveprop FALSE and TRUE (the TRUE call reaches the `obj->prop->parent` line that faulted in #153). All 21 solo levels: no crash, END reached at the true end. The fixed read finds every hat record (e.g. Bunker 1: 23 of 205 records, all with live props; Facility 51, Train 62, Jungle 40, Aztec 39). The old read matched **0 real hats on every level**: on PC, hat-slot reuse never worked before the fix, so the old search could only ever return a false match (a record whose extrascale low byte is 0x11 = PROPDEF_HAT). No record held that byte at level start; the probe's `early_end_at=-1` on every level is the missing piece, as issue #156 (same crash, same PC, reported by spektra, 2026-10-13) pointed out: `PROPDEF_END` (0x30) was also tested on the wrong byte, the END record's extrascale is 0, so the old loop **never stopped at the end of the list** and walked on into the memory after it until a stray 0x30 (stop) or 0x11 (false hat match, then `obj->prop->parent` on garbage). That explains the "after a while of play" timing (it depends on the heap contents past the list) and why the weapon-recycle caller (`setupFindObjForReuse(PROPDEF_COLLECTABLE)` from propobj.c ~11488) was exposed too. The D580 macro covers both reads (the while test and the type match). #156 = duplicate of #153, fixed by the same change. Confidence: high.
 
-## D581: First launch opened on the leftmost monitor, not the primary — FIXED 2026-10-09 (port only, #151)
+## D581: First launch opened on the leftmost monitor, not the primary — FIXED 2026-10-09, corrected + runtime-verified 2026-10-13 (port only, #151)
 
 Cause: with no saved Window.X/Y, `gfx_sdl2.cpp` centred the window using display 0 mode size as absolute coordinates (and sized it from display 0). SDL display 0 is not the OS primary on multi-monitor X11/Xwayland, and the coordinates ignored the display desktop offset, so the window landed on the left monitor. Fix: `primary_display_index()` picks the display whose bounds contain desktop origin (0,0), falling back to 0; auto size and centring use it, centring in global coordinates. Saved positions (Window.X/Y >= 0) untouched. Build verified; runtime check needs a dual-monitor desktop with non-leftmost primary. Confidence: medium-high (native Wayland may ignore requested positions).
+
+**Correction (2026-10-13, runtime-checked on the X220, Fedora 37 KDE Plasma X11, SDL 2.26.3):** the "display containing (0,0)" rule was wrong and still reproduced #151. With the reporter's layout (secondary on the left at the origin, primary on the right; here LVDS-1 at 0,0 and HDMI-1 primary at +1366+0), an SDL probe listed **display 0 = the xrandr primary** (bounds 1366,0 1920x1080) and display 1 = the laptop at 0,0, and the game opened 869x652 at X=249, sized and centred on the laptop. SDL already lists the OS primary first (X11 RandR primary, Windows MONITORINFOF_PRIMARY, macOS main display); the original bug was only the missing desktop offset. Fix: `primary_display_index()` returns 0, and every centring helper adds the display's bounds origin (`gfx_sdl_init`, `gfx_sdl_get_centered_positions` for F10 Center window, and `get_centered_positions_native` for exclusive-mode changes had the same mode-size-as-absolute bug). After the fix: 1224x918 at X=1714 (centred on HDMI-1: 1366 + 960 - 612). Regression check with the primary at the origin (HDMI-1 0,0 primary, LVDS-1 at +1920): X=348 (960 - 612), as before. Native Wayland (no positions) is untested. Confidence: high for X11/Windows.
 
 ## D582: #152 v0.5.0 Linux crash in the ending credits (Cuba), textMeasure reading a garbage string pointer — ANALYSIS ONLY 2026-10-09
 
@@ -20818,3 +20859,1126 @@ the disassembly (64-bit load) plus the maintainer's live 2P retest (die, press E
 **Conclusion.** The thrash is real waste but not the cause of the Deck fight drops; D583's present-scheduling finding (a due present stuck behind the single worker's draw) remains the lead, with the parked present thread (D585) as the structural fix. If the thrash is revisited: key CI8 on the loaded extent only when the texture's max index is known to be inside it (e.g. memoise the max index per address+size with invalidation on tex-pool reuse), and give `Hasher` the full key so variants spread across buckets.
 
 **Ops note.** Two `deckrunner.sh` instances (one from an earlier Game Mode launch) raced for the same job files: one claimed a job and the other ran it with empty arguments, clobbering results and running levels concurrently. Check `pgrep -af deckrunner.sh` before queueing.
+
+## D615: HD texture packs (first stage) — `Video.TexturePack` selects a `<texnum>.png` directory; the renderer substitutes pack images at texture import, keyed on the texture number the game knows (ROADMAP #100)
+
+**Scope:** the first stage of ROADMAP #100 (HD texture packs, post-1.0
+batch; this landed early in the `feature/texpack` worktree off
+`release/v0.4.1`). A texture pack is a sub-directory of `data/texpacks/`
+holding PNGs named `<texture-number>.png` (the 12-bit `texturenum` the
+game assigns each texture, zero-padded decimal). The new ini option
+`Video.TexturePack` (sub-directory name; empty = off) selects one; the
+port substitutes the pack's image for the ROM's decompressed texture
+wherever that number is imported.
+
+**Why the hook is in `texLoad` (the only game-code touch):** the N64
+pipeline never makes the texture number visible to the RSP — GBI carries
+pool addresses only. The game side knows the number (`tex->texturenum`,
+written at `src/game/image.c` texLoad) and the renderer sees the address
+(`import_texture`'s `orig_addr`), so one line bridges the two:
+`#ifdef PORT texpackRegister(tex->data, (s32)tex->texturenum)` after the
+pool allocation. **AGENTS rule 2:** this is a behavioral addition
+(opt-in visual replacement, not an ABI/layout edit), so it was
+implemented under the requested sign-off, behind `#ifdef PORT`, with the
+default (empty option) fully inert — the un-patched build path is
+untouched and byte-identical.
+
+**Mechanism (all in `port/`):**
+- `port/src/texpack.c` — address→texnum registry (open-addressing,
+  insert/update only: the texture pool is a ring, so recycled addresses
+  get re-registered; the D75 content hash still protects the GL cache
+  independently). K0/V1 normalised direction-independently
+  (`GE_HIGHARENA_BASE` inverts the numeric order). One mutex: the game
+  thread registers, the render thread resolves; PNG decodes under the
+  lock (each file decodes once; FIFO cache, 128 entries / 512 MB cap).
+- `port/src/pngread.c` — self-contained PNG→RGBA32 decoder (zlib, which
+  is already linked; no new dependency), adapted from the Perfect Dark
+  PC port's (MIT; NOTICE). Handles the pack-relevant subset: 8/16-bit
+  RGB(A)/palette/gray, plain + Adam7.
+- `port/fast3d/gfx_pc.cpp` `import_texture` — when the pack has a file
+  for the resolved texnum, the decoded RGBA32 takes over the upload
+  (shared `tex_upload_buffer` → `upload_texture`, mip generation per
+  `rdp.tex_lod`), bypassing the N64 pixel-format dispatch; the cache key
+  is tagged `0x5EA7xxxx | texnum` so a pack upload never aliases a
+  vanilla key. Images larger than the upload buffer / GL max fall back
+  to the vanilla import (logged once).
+- `port/src/video.c` — `Video.TexturePack` string option +
+  `videoTexPackInit()` called from `main.c` right after `configLoad()`
+  (same ordering as the Steam Deck preset).
+
+**Verification:** `-level_09` A/B with a 512-file test pack
+(`tools_pc/texpack_make_test_pack.py`, solid-colour PNGs covering
+texnums 0–511): baseline vs packed frames — the level's 10 active
+texnums (7, 257, 259, 295, 296, 315, 468, …) visibly substitute
+(walls/floor/ceiling turn solid red), every un-replaced element
+(doors, arrows, lights, the CCTV window) renders unchanged; decode log
+clean, no errors, 32-frame runs stable. Default (empty option) run:
+`texpack: no pack selected`, frame-identical scene.
+
+**Known limitations (documented for the stage):** pack files replace
+the *base image* — the N64 wrap period (the RC3/D167 mask period) is
+unchanged, so a pack image larger than the tile's authored period will
+repeat at the authored period; in-exe-image (C-array) assets are not
+registered (only the ROM-serialised `texLoad` path), so title/HUD 2D
+art is out of scope this stage; decode is synchronous on the render
+thread (first-use stall per file, ~1–3 ms); no F10 options row yet
+(string options have no options-overlay row — follow-up); rice-pack
+(rice→texnum) support is the next stage, per the dabs reference.
+
+---
+
+### Session 2 (2026-10-06): pack-authoring dumper, alpha-true dumps, and the "line artifact" fix
+
+**Texnum dumper (ROADMAP #100's dumper half).** The registry is now
+always-on (`texpackRegister`/`texpackTexNumFor` no longer gated on a
+selected pack — one hash probe + mutex per texLoad; only the pixel
+swap in `texpackReplacement` stays gated), and two things were added:
+
+- `GE_TEXNUMDUMP=1` appends every `(address, texnum)` pair to
+  `texdump/texnumd.log` at registration — the offline map that turns a
+  `GE_TEXDUMP` run into a pack-authoring job list.
+- `texpackBeginImport(addr)` / `texpackCurrentTexNum()` (import context
+  on the render thread, strictly synchronous, zero locking): 
+  `import_texture` records the address it is about to import, and the
+  GL upload layer (`gfx_opengl.cpp`) names its `GE_TEXDUMP` PPMs
+  `texdump/NNNN.ppm` (texnum) for registered pool textures instead of
+  the `tNNN_WxH_mipN` sequence name; unregistered/C-array textures and
+  the fire-shape branch keep the old names.
+
+**Alpha-true dump sidecar.** The PPM writer has no alpha channel, and
+the pack-authoring tool initially flattened every pixel to A=255 —
+which silently destroyed vanilla 32-bit cutout alpha (arrow HUD quads,
+cactus leaves). The texnum-named dump now also writes a raw RGBA32
+sidecar `texdump/NNNN.rgba` (`GE1\nW H\n` + w*h*4 bytes); the
+authoring tool prefers it and falls back to the PPM (A=255
+interleaved) only when the sidecar is absent.
+
+**The "line artifacts" (4x pack looked wrong) — root cause + fix.**
+Three separate bugs, in order of discovery:
+
+1. *UV scale bug (introduced, then reverted):* a per-tile float UV
+   multiplier (`tpack_su/sv = pack_dim / orig_dim`, applied to the
+   vertex-pass UVs) assumed the GL image size had to be folded into
+   the UV range. It did not — the vertex pass normalises by the N64
+   texel count (`tex_width` from the tile line-size), and a wrapping
+   tile's GL repeat period grows with the uploaded image size,
+   cancelling the texel growth exactly. The multiplier therefore
+   made every replaced surface Nx denser (the "line artifacts" of
+   the first 4x test). Reverted at all four sites; the pack branch
+   comment records why. (The 1x A/B: with UV scaling off and an
+   alpha-true pack, 0 texnums differ at the dump level and the
+   frame diff drops to a sub-2-level cactus-region remnant.)
+2. *Nearest-neighbour upscale grid:* N64 textures are 16–64 px and
+   most surfaces are **magnified** on screen. GL_LINEAR interpolates
+   the small originals smoothly; a 4x NN pack turns each texel into a
+   hard 4-px block, so the wall (a 32x32 original) showed a ~9-px
+   square grid at mid-range. Fix: the authoring tool's default
+   upscale is now **Lanczos-3** (separable 2x steps, pure stdlib;
+   `--nn` keeps the blocky look).
+3. *Minification aliasing:* in-level `tex_lod` is 0, so the vanilla
+   sampler is base-level-only GL_LINEAR; a 4x pack image minifies
+   4x harder and aliases into regular banding even with smooth
+   content. Fix (port-only, pack-only): pack replacements always
+   upload with a generated mip chain (`upload_texture(..., true)`) and
+   the cache node's new `sampler_mips` flag forces the MIPMAP min
+   filter (compared in the vertex pass so a pack/vanilla bind swap
+   re-sets it). Vanilla nodes and the vanilla upload path are
+   untouched (vanilla `sampler_mips` = `rdp.tex_lod` as before).
+
+**Result:** 4x Lanczos pack on `-level_09` frame 100 vs vanilla:
+mean abs diff 1.31/channel (the banded 4x NN build was ~11); no
+visible artifacts at the cactus/wall/panel regions. A
+procedurally-authored 1024x1024 demo pack (`testhd`, walls 0295/0259
+with seams/rivets/grain/scratches) shows the authored-detail
+"HD pack" look in-engine — the port needed nothing further for it.
+
+**Pack-authoring tools (`tools_pc/`, stdlib-only):**
+`texpack_from_dumps.py` (texdump dir -> pack dir; `.rgba` sidecars
+preferred, PPM fallback; Lanczos-3 default, `--nn` option; scale must
+be a power of two) and `texpack_demo_hd.py` (same pipeline, but the
+listed texnums get a procedurally *authored* 1024x1024 texture —
+seams/rivets/grain/AO/scratches composited over the smooth upscale —
+as a stand-in for hand-drawn HD art).
+
+
+**Addendum 2026-10-10 (alpha preservation + per-level overrides; port layer
+only, `port/src/texpack.c`, `port/fast3d/gfx_pc.cpp`):**
+
+*Fix 1 -- keep the original's transparency.* Glass (texture 654, an I-format
+texture whose N64 alpha is its intensity) turned solid because the pack PNG
+is fully opaque. "Fully opaque" is computed once per PNG at decode and
+cached with it. On a texture-cache miss, when the replacement is opaque:
+I (and CI drawn with the TLUT off, which the importer already treats as I)
+and IA get alpha = Rec.601 luminance of each replacement pixel (exact N64
+semantics for I; for IA a flat RGB image carries no alpha, so luminance is
+the best available). CI with any transparent entry in the used palette bank,
+RGBA16 with any alpha bit clear, or RGBA32 with any alpha < 255 cannot be
+rebuilt faithfully: the texnum falls back to the vanilla texture (logged
+once, first 32), remembered in a per-texnum mark cleared on level change.
+Caveat: the CI check looks at the palette at first use; a texnum reused with
+a different palette keeps its first decision until the next level. A PNG
+that already has alpha is used as-is.
+
+*Fix 2 -- per-level overrides.* `data/texpacks/<pack>/<SS>/<texnum>.png`
+(SS = stage number, 1-3 digits, e.g. `33` = Dam) overrides the flat
+`<texnum>.png` while that stage is loaded. The key is
+`lvlGetCurrentStageToLoad()` (what the D416 log prints as `stage=`), read
+port-side only when the pack ships at least one override directory.
+Directories are scanned at pack-select time; the decode cache and the GL
+texture-cache key include the source (stage+1 xor-folded into the 0x5EA7xxxx
+tag), so a level change never reuses another level's override. With no pack
+selected nothing changes (texpackReplacement returns NULL on the first test).
+
+## D616: Rice texture packs (GLideN64/RT64 "rice"-CRC-named PNGs) map onto the port's `NNNN.png` texpack format via a ROM-side dumper + pack importer — ROADMAP #100, rice-pack stage
+
+**Status:** TOOLING LANDED 2026-10-06 (`tools_pc/texpack/rice_dumper.py` + `tools_pc/texpack/rice_pack_import.py`; feature/texpack worktree). No port C changes. Validated against the `GoldenEye-007-HD` pack (RT64/`ge007.tdb` ecosystem, `rt64.json` + 2046 `GOLDENEYE#…#…png`).
+
+**The problem.** Rice packs ship one PNG per N64 texture named
+`GOLDENEYE#<crc>#<fmt>#<siz>[#<palcrc>]{_ciByRGBA,_all}.png` where `<crc>`
+is a "RiceCRC32" of the texture's base image **as it sits in RDRAM**. The
+pack targets the 1964tech recompile, so its tdb/offset identifiers are
+recompile-side and not portable to the vanilla texnums. The only portable
+join key is the rice CRC itself — so the port side must be able to *produce*
+the same identifiers from the vanilla ROM.
+
+**Domain solved (after a long 0-hit phase — the LE variant is the trap):**
+
+- The pack's CRCs are **NOT** the `RiceCRC32` you get by porting
+  GLideN64's `TxUtil.cpp` or RT64's `texture_hasher.cpp` as-is: those
+  read `*(uint32*)(src+x)` (little-endian on x86), and that variant
+  produces **0 hits** against the pack on every byte-domain combination
+  (swapped/raw × LE/BE × stride/bpl, 1744 zlib-CI textures).
+- The matching variant is the **GlideHQ / PD-dabs-mod convention**
+  (see `ge-port-reference/perfect-dark-dabs-mod/port/src/texpack.c`):
+  4-bit rotate-carry CRC, **big-endian** 32-bit reads, and a per-row
+  `wordHash` that carries into the row-end XOR
+  (`wordHash = pos ^ BE32(row+pos); crc = wordHash + rol4(crc); …
+  crc += wordHash ^ counter`).
+- Hashed bytes = the base image exactly as RDRAM holds it:
+  1. zlib-CI decode (`texInflateZlib`): ctrl/format/nc-1/nc×2-byte
+     big-endian palette, then `w`,`h`, then rarezip (`11 72` header +
+     **raw** deflate, `wbits=-15`).
+  2. `texAlignIndices` layout: rows of `ceil(nper)` bytes padded to an
+     **8-byte-aligned stride** (nper = w for 8-bit idx, `(w+1)/2` for
+     4-bit).
+  3. `texSwapAltRowBytes` **iff `ctrl & 0x3F` (lod) > 0** (odd rows,
+     32-bit word pairs; row advance `alignedwidth*4` bytes = the pool
+     stride). The recompile's copy has **no `#ifdef PORT` guard** — it
+     swaps on PC too — and the pack was dumped from the recompile, so
+     the swapped domain is the right one for lod>0 textures.
+- The hash's `rowStride` = the **pool stride (8-aligned)**, not the
+  RDP-tile `bpl` formula.
+- ID fields: `fmt` = 2 for all colour-index textures; `siz` = 1 for
+  8-bit indices (RGBA16_CI8/IA16_CI8, image formats 9/11), 0 for 4-bit
+  (10/12). The 4th field (`palcrc`) is the same hash over the first
+  `cimax+1` big-endian 16-bit palette entries — but it is **not needed
+  for the join**: no two pack textures share an image CRC (verified
+  against all 532 CI entries), so the 3-field key `crc#2#siz` is
+  unambiguous.
+- Odd-width CI4 (8 of 1744): `texAlignIndices` writes `ceil(w/ipb)`
+  bytes per row (the C loop `for(x=0;x<width;x+=ipb)`), i.e. a
+  partial last byte, not `w//2`.
+
+**Result on `GoldenEye-007-HD`:** dumper emits 1744 vanilla zlib-CI
+identifiers; importer joins 555 CI pack PNGs → **251 unique keys / 256
+files** written (fan-out to identical-content texnums, e.g. 299/300).
+The 304 unmatched pack CI textures have no vanilla-ROM texnum
+(recompile-side additions); the extension path is joining the pack's
+`ge007.tdb` offsets to the recompile's `imagelist.u.csv`
+(`GoldenEye-007-Plus/imagelist.u.csv`) — out of stage-1 scope.
+Spot checks: tex 4's image CRC **and** palcrc (`5f045394`) both equal
+the pack's own PNG name; written files are valid PNGs (e.g. 0004.png
+320×320).
+
+**Non-CI pack textures** (fmt 0/3/4: IA/RGBA/VP, 4597 entries) are not
+covered: their rice IDs come from a different byte domain (RDP-tile
+bpl, paletteless formats) and from recompile assets — stage 2, with the
+tdb/imagelist join. Model packs: separate stage (ROADMAP #100).
+
+**Tools** (stdlib-only, no machine paths):
+- `tools_pc/texpack/rice_dumper.py <rom> <imagelist.u.csv> <out.csv>` —
+  per-texnum `texnum,crc,fmt,siz,palcrc,w,h`.
+- `tools_pc/texpack/rice_pack_import.py <rice_index.csv> <packdir>
+  <outdir> [packname]` — lays out `<outdir>/<texnum:04d>.png` for
+  `port/src/texpack.c` (D615) to consume.
+
+**In-engine A/B (2026-10-06, feature worktree):** the `GoldenEye-007-HD`
+pack was imported through the D616 pipeline (256 files under
+`data/texpacks/GoldenEye-007-HD/`; `data/` gitignored — pack PNGs are
+game content and stay out of the tree), `Video.TexturePack` set in
+`ge007.ini`, `-level_09` runs with `GE_QUITFRAME`: the log shows the
+substitution firing for real (13 decodes: 0315/1024 at 2048×2048,
+0893/0901/0915 at 1024², …) with a clean exit. `GE_PCDUMP` A/B
+captures at the same frame stem (vanilla vs packed): identical
+camera/HUD; the packed run shows the HD grain/detail on the
+corridor's wall and floor surfaces, the vanilla run flat. (Launch
+gotchas on a fresh worktree: `data/` needs the `pcmodels-`/`pccg-`
+asset sidecars and `C:\msys64\mingw64\bin` on PATH for SDL2.dll —
+known launch requirements, not pack issues.)
+
+## D617: The HD pack's `ge007.tdb` is the emulator's full per-draw key list — non-CI rice keys are per draw tile, so the join needs display-list tile parameters (ROADMAP #100, rice-pack stage)
+
+**Status:** OPEN 2026-10-06 — investigation landed, plan written
+(`docs/dev/TEXPACK-RICE-DRAW-PLAN.md`); no code change yet. Tooling-only,
+`feature/texpack` worktree.
+
+**What this corrects in D616.** D616 assumed the pack targets a recompile
+whose texnums are unreachable, and treated the pack's PNG filenames as the
+join target. The pack page says otherwise: it is a **GLideN64 HTS pack for
+emulators** (Project64 + mupen64plus; "HTS file goes to:
+Project64/Plugin/GFX/cache"), and `ge007.tdb` is the **emulator-side
+registry of every texture key**, 35517 lines, of which the 2046 pack PNGs
+are a small subset.
+
+**Findings.**
+
+1. **Join against the tdb, not the PNGs.** Parsing the tdb's 2567
+   non-CI keys (`GOLDENEYE#<crc>#<fmt>#<siz>_all;WxH`, hex upper-case,
+   `_all` suffix must be stripped before splitting on `#`) and hashing the
+   whole stored texture with the D616 recipe (`rice_hq` BE variant over
+   pool bytes at decode dims and pool stride) yields **9 hits** where the
+   PNG-filename join yielded **0**. The 1491 non-CI PNGs are mostly added
+   HD content (Effects/Explosion ×325, Smoke ×312, Gunbarrel ×299, UI
+   letters, character hacks) — they are not vanilla replacements, which is
+   why the PNG join is empty.
+2. **The recipe is confirmed correct**, not merely close: for the 9 hits
+   the tdb's `;WxH` equals the decode dims exactly, and the fmt/siz map
+   (`TEX_GBI_FMT`/`TEX_GBI_SIZ`) and the pool-stride formula agree with
+   `texGetLineSizeInBytes(tex,0)*8` in `src/game/tex.c` (the emulator's
+   `line<<3`).
+3. **Why 9/953 and not ~953**: the tdb carries ~2.7 keys per vanilla
+   texture. GLideN64 hashes **per draw tile** —
+   `src = RDRAM + tileAddr + ul_t*bpl + ((ul_s<<siz)+1)>>1`,
+   `RiceCRC32(src, tile.width, tile.height, fmt<<8|siz, bpl)`,
+   `bpl = tile.width<<siz>>1`, `rowStride = tile.line<<3` — and most GE
+   draws set a display-list `G_SETTILE` whose width/height/`ul_s`/`ul_t`
+   differ from the stored texture (sub-rectangles, tiled draws, repeats).
+   `bpl` (the inner word-walk extent) and `rowStride` (the row advance)
+   are different values for those draws.
+4. **Brute force is not the answer.** Exhaustive `(w,h,stride,offset)` and
+   BE/LE/swizzle/nibble-swap/decoded-pixel sweeps over the strongest
+   content pairing (texnum 2214, I4 128×48, key `1478129A`) score 0 — the
+   tile parameters must be read from the display lists, not searched for.
+   The C oracle for the ROM-side decode is also not the unblocking step:
+   the pool bytes are already content-verified against the pack PNG.
+
+**Next step** is the display-list walk in the plan doc (reuse
+`tools_pc/d43_gdldump.py` / `tools_pc/bg_gdl_census.py` framing); the tdb is
+the oracle for validating the resulting key set before touching the pack.
+
+## D618: The community HD pack's non-CI keys are per-draw rects that are partly unreachable from N64 tile state (440x1 strips), and a rect key cannot land in the texnum-keyed pack format — the rice-pack route stops here (ROADMAP #100, rice-pack stage)
+
+**Status: STOPPED (design decision, 2026-10-06) — the display-list walk in
+`docs/dev/TEXPACK-RICE-DRAW-PLAN.md` is not worth running.** Measured, not
+assumed; all numbers below are from `scratch/rice_domain_probe*.py`,
+`scratch/content_join_probe.py`, `scratch/ci_faithfulness_probe.py` (local
+analysis, not committed).
+
+**Setup.** Re-tested D617's diagnosis on the GoldenEye-007-HD pack
+(`ge007.tdb`, 35517 lines) before spending the plan's work.
+
+**Findings.**
+
+1. **The tdb's `;WxH` field is a per-draw rect, and some rects cannot be
+   N64 tile state at all.** Non-CI key dims: `64x64` ×623, `16x16` ×429,
+   `440x1` ×301, `64x32` ×187, `95x32` ×148, `65x65` ×84, `54x54` ×81,
+   `32x32` ×79, `128x47` ×56, `8x8` ×49, `32x64` ×48, `96x80` ×40. None of
+   440/95/128x47/96x80 exist in `imagelist.u.csv`. A `440x1` I8 rect is
+   440 bytes/row, over tmem's 128-byte pitch — so those 301 keys are
+   **recompile-side (RT64) textures, not loadable tile state**; no display-
+   list walk over the vanilla ROM can produce them. ~1/8 of the non-CI key
+   set is unreachable by construction, and the rest is per-draw tiling.
+2. **The byte domain is not recoverable by search.** ~100 domain variants
+   (pool / pool+N64 alt-row swap / decoded RGBA32 / decoded RGBA16, BE and
+   LE word reads, aligned / packed / `w*4` strides, RGBA/ABGR/ARGB/BGRA
+   orders, alpha = source/opaque/zero) over the 604 dim-matching candidates:
+   **0 hits**. The 9 whole-texture hits from D617 are coincidences (texnums
+   2085–2100, 2 distinct CRCs).
+3. **Content-join is not a workaround.** Downsampling pack PNGs to vanilla
+   dims and scoring mean-abs-diff over RGBA gives best scores 8–20 with
+   margins <3 against 200+ same-(fmt,siz) candidates — the pack's HD art is
+   a rework, not a faithful upscale, so it does not discriminate. (The
+   near-zero diffs seen earlier were a channel-count artifact of a raw-
+   length probe, not a match.)
+4. **The 256 entries we do emit are semantically sound.** `rt64.json`:
+   `defaultOperation: "stream"`, `operationFilters: []`, two `shiftFilters`
+   (`UI\Checkmark\*`, `UI\Crosshair\*` → `half`) — entries are straight
+   replacements, not masks. Of the 256 emitted: 199 color+opaque, 35
+   color+alpha, 22 grayscale (legitimate I/IA sources). Pack PNG dims are
+   exact integer multiples of the tdb rect (64x/32x/16x/8x).
+
+**The architectural blocker (why the walk would not finish the feature).**
+Even with correct per-draw keys, a rect key names a **sub-rectangle of a
+texture, drawn tiled per draw**. Our pack format (`data/texpacks/<name>/<texnum>.png`,
+D615) replaces a **whole texture**. Dropping a `95x32` tile's HD art at the
+parent texnum changes every draw that uses that texture, not just the one
+tile. Consuming this pack needs a format extension (rect-keyed entries:
+texnum + `ul_s,ul_t,w,h`, per-draw selection) — a second feature, not a
+missing step.
+
+**Decision / what ships instead.** HD + custom texture support is the
+verified texnum path: dumper → authoring (upscale or user art) →
+`data/texpacks/<name>/NNNN.png` → D615 A/B. Community HTS packs stay
+unsupported for non-CI content; the CI half (251) already imports. Optional
+later nicety, not content: the PD dabs-mod runtime rice index
+(`texpackBuildRiceIndex`/`texpackRiceLookup`) so whole-texture rice packs
+load with no offline step — it scores the same 251+9 on this pack, so it is
+architecture, not coverage.
+
+## D619: The community HD pack's remaining 1790 PNGs are blocked by four independent causes (recompile-side keys, wrong hash domain, rect-vs-whole-texture format, content outside the identity space) — feature status written up (ROADMAP #100)
+
+**Status: WRITTEN UP 2026-10-06 — `docs/dev/TEXPACK-STATUS.md` is the
+current-status read for #100; this entry is the evidence for the blocker
+list.** Extends D618 (which stopped the rice route) with the brute-force
+negative and the pack's own content taxonomy.
+
+**Setup.** Question: can a *full* HD import be launched from the GoldenEye-007-HD
+pack (2046 PNGs)? Measured, not assumed.
+
+**Findings.**
+
+1. **Brute-force rect join closes the non-CI route without a display-list
+   walk.** The tdb gives each key's rect dims, so enumerate every
+   sub-rectangle of every vanilla non-CI texture at those dims and hash the
+   pool bytes with the GLideN64 recipe (`bpl` from the rect width, row
+   advance = the source pool pitch, word-offset term rect-relative). Result:
+   **14.6M positions, 0 hits**, and 0 for the two other plausible models
+   (row advance = `bpl` contiguous-tile copy; absolute word-offset term).
+   Combined with D618's ~100 whole-texture domain variants (0 hits), the
+   non-CI keys are not derivable from vanilla-ROM bytes by any model tried.
+2. **The pack's own folder taxonomy says the rest is not texture-replacement
+   content at all:** `Effects` 734 (Explosion 339, Smoke 326, Death 40, …),
+   `UI` 558 (Gunbarrel 299, Letters 208, Crosshair 27, Ammo 19), `Areas/<Mission
+   NN - Name>` 481, `Hacks/<Mario Characters v3.17>` 264, `Objects/Weapons` 9.
+   `UI` is in-exe C-array art the registry never sees (D615 limitation); `Hacks`
+   are character-model swaps = model packs, the other half of #100. So the
+   ceiling on this pack is ~1200 of 2046, and only through a level-scoped
+   content join (per-level `GE_TEXNUMDUMP` active-texnum sets ∩ the tdb's
+   `(fmt,siz,WxH)`, then content-match with a margin threshold) — not yet
+   measured for discriminative power.
+3. **Four independent blockers, in severity order** (full detail in
+   `docs/dev/TEXPACK-STATUS.md`): **B1** keys name draw rects, not textures
+   (`440x1` ×301 exceeds tmem's 128-byte pitch → recompile-side, unreachable
+   by construction); **B2** the non-CI hash domain is the recompile's
+   converted bytes, not the ROM's pool bytes; **B3** a rect key cannot be
+   applied by the whole-texture `NNNN.png` format (needs a rect-keyed format
+   extension + per-draw selection); **B4** most entries are outside the
+   engine's identity space (HUD in-exe art, model swaps).
+
+**Landed/verified for the record:** 256 of 2046 import (251 zlib-CI joined
+by rice CRC + 9 coincidental non-CI); the texnum path itself (D615) is
+A/B-verified. Owed on that path (shippable checklist): branch merge, F10
+overlay row for `Video.TexturePack`, in-exe image registration, wrap period,
+upload-buffer size ceiling, first-use stall, pack manifest, region-tagged
+packs, user-facing authoring walkthrough.
+
+## D620: the HD pack's non-CI keys hash the *pack's own* re-encoded content — no vanilla/recompile byte domain produces them; the pack→texnum join must come from external signals (level folder + tile geometry). The recompile-side domain B2 named is actually measurable, and B2/B4 are refined, not overturned (ROADMAP #100, rice-pack stage)
+
+**Setup.** D619 left B2 ("the non-CI hash domain is the recompile's bytes")
+on an *unmeasured* recompile side. This session had the whole recompile
+side local: the `GoldenEye-007-Plus` source tree (its `imagelist.u.csv`,
+2698 rows, offset-aligned with vanilla), its image build docs
+(`scripts/IMAGE_BUILD_SYSTEM.md`), the 1964 GEPD bundle ROMs, and the two
+xdelta patches. Measure every remaining byte domain before accepting B2.
+
+**Findings.**
+
+1. **The xdelta "plus" ROMs are not usable as a measurement domain.**
+   `xdelta3 -d` (v4 *decode* — the patches carry no xdelta3-applyable
+   stream; only the output length is honoured) of
+   `goldeneye_007_plus(.xdelta|_v2)` onto the 12 MB vanilla base yields a
+   **32 MB** ROM differing from the base in 98 % of its first 12 MB —
+   another layout/endian than any of the GEPD bundle's 12 MB ROMs
+   (`007 - GoldenEye (USA).n64`, sha1 `7dd376e9…`, 95 % different from
+   vanilla, same size). Image bytes at the (shared) `imagelist.u.csv`
+   offsets in **all three** ROMs parse as no GE bitstream under any
+   ctrl-offset × bit-order × zlib/non-zlib interpretation (brute-forced
+   header scan: 0 valid fmt/nc/w/h). Every earlier "recomp byte" probe ran
+   on the corrupt xdelta output — its "2283 undecodable" is void. The
+   *correct* recompile-side byte set is inside the recompile tree:
+   `assets/images/combined/combined.bin` / `assets/images/split/*.bin`
+   (per its `IMAGE_BUILD_SYSTEM.md`, byte-perfect against the vanilla
+   region: sha1 `044fca472bf6…`), i.e. for untouched images, identical to
+   the vanilla ROM region — a domain D619 already measured (0 hits).
+2. **The pack's keys hash pack content; no byte domain on our side can
+   produce them.** Vanilla non-CI keys (953, from the verified
+   `rice_nonci.py` pipeline — decoded pool bytes, n64-swapped when
+   lod>0, rice_HQ CRC, `scratch/van_nonci_keys.csv`) hit **0** of the
+   tdb's 2567 non-CI keys. The pack's own 1491 `_all` keys
+   (I8×573 / IA8×389 / RGBA16×343 / I4×136 / RGBA32×41 / IA4×9) hit 0 of
+   the 953. The 553 `ciByRGBA` entries carry palcrcs (541 non-`$`) that
+   match a vanilla palCrc in only **3** cases → the pack **regenerates
+   palettes**, so even the CI-side palette channel of its keys is
+   pack-side. Non-CI/CI-by-RGBA keys are hashes of 1964tech's
+   re-encoding of HD art; a join has to come from signals *outside* the
+   pack: (a) level folder ↔ the level that draws the texnum, (b) tile
+   geometry, (c) elimination among a level's texnums after the CI-joined
+   siblings are removed.
+3. **The scale factor is wild, so a dimension bijection is dead.** Over
+   the 257 confirmed CI-joined pairs (251 keys, fan-out included) the
+   pack/vanilla dim ratio is 4×–128×: 32× ×135, 64× ×83, 16× ×31, 128×
+   ×6, 8× ×1, 4× ×1. But every joined pair sits in its *correct* level
+   folder (257 across 21 folders, e.g. texnums 423/240/1193/1258 in
+   `Areas/Mission 01 - Dam`) — the folder→level mapping is a working
+   signal, and D619's "unmeasured level-scoped join" should be formulated
+   as *folder → level's drawn-texnum set (per-level GDL census) +
+   elimination + tile-geometry scoring*, not a dims match.
+4. **B4 narrowed.** Image-ID sprite art (explosion/smoke/gunbarrel-style
+   banks) loads through `texLoad`/`texLoadFromTextureNum`
+   (`front.c:4964`, `image_bank.c:327`) → **already inside the registered
+   texnum path** (D615). D619's "822 PNGs in UI/Hacks are outside the
+   identity space" therefore applies only to (i) in-exe C-array art
+   (rareware logo, font echardata) and (ii) `Hacks` (character-model
+   swaps = model packs). Owed: one `GE_TEXNUMDUMP` pass over the
+   title/menu + an effects-heavy level to confirm the sprite/UI texnums
+   appear (cheap, closes (i) vs (ii) empirically).
+
+**Decision.** B2 is rewritten: "pack keys hash pack content; an
+external-signal join is required" (not "hash-domain mismatch to fix").
+B4 narrowed per 4. Next experiments, in order: (1) `GE_TEXNUMDUMP` on
+title/menu + effects-heavy level → registered-texnum confirmation;
+(2) folder→level bijection from the 257 joined pairs + a per-level GDL
+texnum census → measure the elimination ambiguity for the 481 `Areas` +
+734 `Effects` PNGs before committing to the content-join machinery.
+
+## D621: the PD dabs-mod texture-pack notes mine — the HD-pack route stays texnum-keyed; the PD port's *key* layer transfers nothing (its keys hash ROM bytes we hold; this pack's keys hash 1964tech's build, D620), but its *format* layer is a ready fix list; plan lands
+
+**Setup.** "How did the PD PC port get HD texture support, and why can't we
+adapt that?" — answered by reading the dabs-mod tree's
+`CLAUDE-notes/texture-packs.md` in full (the PD PC port fork that ships
+the PD Plus HD packs, 3395 images).
+
+**Findings.**
+
+1. **The PD port's HD support is the *same architecture* we have.**
+   `texpack.c` indexes `texture-packs/<name>/NNNN.png` by the port's own
+   texture number, substitutes at `import_texture()`, decodes off the
+   render thread, authors from an in-game F7 dump. The PD Plus HD pack
+   was authored **natively** that way — no key join exists to solve.
+   Our D615 system is this system.
+2. **The PD port's *emulator-pack* layer is a key-domain trick, and it
+   transfers nothing to our pack.** For Rice/GLideN64/1964tech
+   artifacts it **recomputes the Rice checksums itself, over the ROM
+   bytes it holds** (glyphs: 32 rows × 16 bytes at the 8-byte stride,
+   "exactly one variant matched"), then matches pack records
+   (`texpackIndexHtc`, `.htc`/`.dat` ingest). That works because PD's
+   asset pipeline reads the stock ROM at startup — the pack's key domain
+   *is* the ROM's domain. This HD pack's keys hash 1964tech's
+   re-encoded build (D620): there is no byte stream of ours to
+   recompute from. Same texnum architecture, different key domain —
+   the plan keeps the texnum route and drops the key route.
+3. **The *format* layer is a ready-made fix list for our importer**
+   (adopted as Phase A of `docs/dev/TEXPACK-PLAN.md`): `gfx_pad_replacement()`
+   (pack image = tile, not the padded 8-byte row — 278/3395 of the PD
+   pack were "stretched" by exactly this); `bottomup.txt`/`ext_tex`
+   row-order markers (rice packs are N64-row-order, must not flip);
+   `gfx_replacement_alpha()` (opaque replacement standing in for an
+   alpha texture gets repaired alpha — the PD notes describe our exact
+   I8 failure: light beams "a solid grey sheet, every smoke puff a
+   square"); F8/F9/F10 pack keys; worker-thread decode + kept store.
+   Our decision: bake pad/alpha into the **authoring tools**
+   (`rice_pack_import.py` emits padded, right-way-up, alpha-repaired
+   `NNNN.png`) so the port stays format-agnostic; keep the
+   in-port fallback for hand-made packs.
+
+**Decision.** Plan: `docs/dev/TEXPACK-PLAN.md` — Phase A (make the
+texnum path correct/shippable: pad contract, alpha repair, F10 row,
+stall, manifest, merge), Phase B (measure the geometric join: B0
+sprite-bank `GE_TEXNUMDUMP` confirmation, B1 folder→level table, B2
+per-level GDL census, B3 ambiguity gate, B4 content scorer, B5 review
+viewer), Phase C (land the join as `NNNN.png` + per-level A/B). Next
+task: B0.
+
+## D622: B0 sprite-bank confirmation — the `Effects`/`UI` sprite-bank texnums register and draw, so those PNGs stay in the join scope; the unregistered residue is exactly the known in-exe art; Phase B continues to B1–B3
+
+**Setup.** Phase-B step B0 of `docs/dev/TEXPACK-PLAN.md` (ROADMAP
+#100, plan D621): confirm the HD pack's `Effects/`
+(Explosion/Smoke/Death) and `UI/` (Gunbarrel/Crosshair/Ammo)
+sprite-bank texnums register through the texnum hook and draw, so the
+external-signal join (D620) can reach them — otherwise those ~1290 PNGs
+move out of scope and the ceiling drops. Two `GE_TEXNUMDUMP=1
+GE_TEXDUMP=1` runs, human-driven (the `GE_INPUTSCRIPT` headless attempt
+burned most of its level time in the intro cutscene — scripted combat is
+not reliable yet, human played the runs): (a) no level flag — front-end
+menus (title → mode select → 0100 → 0200, then the Dam level loaded);
+(b) `-level_09` with combat (firing + kills). Evidence in
+`scratch/b0/` (gitignored, regenerable): `texnumd_frontend.log`
+(445 lines / 377 unique texnums, 521 texture dumps),
+`texnumd_level09.log` (335 lines / 321 unique, 316 dumps), the PPM/RGBA
+dump sets, labeled contact sheets (`fe_*.png`, `lvl09_*.png`) and zoom
+sheets.
+
+**Findings.**
+
+1. **The `Effects` sprite-bank texnums register and draw.** The
+   explosion/smoke sprite banks on `-level_09` are texnums
+   2081–2196: grey smoke puffs (2086–2098), white flash discs / smoke
+   billows (2108–2112, 2176–2196), yellow/orange spark and flash
+   sprites (2119, 2128, 2157–2160), white crescents/dots (2171,
+   2177–2180). Every one of these appears in
+   `scratch/b0/texnumd_level09.log` (registered at `texLoad`) and was
+   drawn during the combat run (texnum-named dumps exist).
+2. **The `UI` crosshair is a registered texnum.** 2236 = the red
+   targeting reticle — registered and drawn on `-level_09`.
+3. **Front-end art is registered.** Mode-select icons 2194–2196,
+   mission-select photos 2552–2553 (128x64) and 2578–2598 (68x44),
+   agent portraits 2504–2508 (32x64 CI8), the "CLASSIFIED /
+   CONFIDENTIAL / EYES ONLY" roll 2618–2628 (95x32 CI8 — the pack tdb's
+   `95x32` rect keys now read as this game image geometry, D618),
+   waveform/cube/arrow sprites 2214–2225, 2188–2193.
+4. **The unregistered residue is exactly the in-exe C-array art
+   already out-of-plan (D619):** the echardata font glyphs (unnamed
+   `tNNN_8x7`–`tNNN_8x12` dumps, a–z/digits) and the 15 fire-particle
+   DL images (`fireNN_16x14`, D219). Nothing else unregistered was
+   observed.
+5. **`UI/Gunbarrel` is not a sprite-bank class.** GE renders
+   first-person weapons as textured 3D models, so the pack's 299
+   `Gunbarrel` PNGs are gun *model* textures — ordinary registered
+   texnums scoped to the level(s) that equip the weapon, joinable by
+   the same level-scoped route as `Areas`/`Objects`. Same for the
+   in-HUD art: `UI/Letters` (208) and `UI/Ammo` (19) are the in-exe
+   font/glyph art (finding 4) and stay out of plan. The
+   `Effects/Death` sub-class (40) was not visually isolated but is the
+   same sprite-bank mechanism (chrobj effect banks load via `texLoad`).
+
+**Verdict — B0 PASS.** The `Effects`/`UI` classes stay in the join
+scope; the ~1200 ceiling stands until B3 measures it. Along the way:
+the first dump run produced a 0-byte `texnumd.log` — the log's `FILE*`
+was buffered and the force-killed dump run lost it on exit;
+`port/src/texpack.c` now flushes after every line (port-layer fix, no
+game-code touch).
+
+**Next.** Phase B1 (folder→level table), B2 (per-level GDL texnum
+census), B3 (candidates-per-PNG ambiguity report + gate), per the plan.
+
+## D623: Phase B1–B3 measured — the folder→level mapping holds (241/244 Areas with the model pool), model DLs carry G_NOOP texnums, and the B3 ambiguity gate fails: median 104 candidates/PNG → B5 human-in-loop for the geometric tier
+
+ROADMAP #100, `docs/dev/TEXPACK-PLAN.md` Phase B (B1 folder→level, B2 per-level GDL census, B3 candidates-per-PNG ambiguity report + gate). Tooling only: `tools_pc/texpack/level_census.py`, `model_census.py`, `ambiguity_report.py` (+ `scratch` CSVs). No port C, no game code.
+
+**B1 — folder→level verified.** The 21 pinned folders (D620's 257 CI-joined pairs) extend to the pack's 15 `Areas/Mission NN` folders via `kSoloLevels` (`port/src/main.c`) + the `bg.c` levelinfotable: Dam 33, Facility 34, Runway 35, Surface 36 (+Surface2 43), Bunker 09 (+Bunker2 27), Silo 20, Frigate 26, then a constant +2 mission offset (Statue 22, Archives 24, Streets 29, Depot 30, Train 25, Jungle 37, Caverns 39, Aztec 28). Re-derived the 257-pair join with folder attribution (still 21 folders / 257 pairs — D620 stable). Against the bg-only census, 173/257 texnums (67 %) appear in their mapped level's bg DLs; the misses are model/prop/weapon textures (e.g. KF7 870/887, Mines 778–942, Dam 685–688) — adding the model pool (below) lifts containment to 241/244 (98.8 %); the 3 residual misses (279, 2473, 316 — one each in Facility/Surface/Bunker) are zlib-CI images that no static G_NOOP pool draws (shared-pool or cutscene art — still joinable, just not statically verifiable).
+
+**B2 — census, extended to model segs.** `level_census.py` walks the 17 bg segments (15 missions + Bunker2 + Surface2) and extracts texnums from G_NOOP words (`w1 & 0xFFF` = LOD texnum, `(w1>>12) & 0xFFF` = DETAIL second texnum, `tex.c:919`) → `scratch/level_texnum_census.csv` (1442 rows / 930 unique texnums; 412 without vanilla dims). New fact: **model display lists carry the same G_NOOP texnum convention** — `GproximitymineZ` → 944/945, `PlandmineZ` → 2469/2470, and 944/945 are inside the pack's `Objects/Weapons/Mines` joined range. `model_census.py` scans all 510 model segs (raw-deflate behind the 0x1172 header) → `scratch/model_texnum_census.csv` (3389 rows / 1462 texnums; 3314 in the image list). Model texnums are global (a model segs into every level that instantiates it), so the candidate pool for a level-scoped PNG is *that level's bg set* ∪ *model pool* ∪ *sprite bank* (B0 dumps), minus the 256 already-joined.
+
+**B3 — the gate fails (geometric-only).** `ambiguity_report.py` scores every in-scope pack PNG (2045) against its pool with class match (`ciByRGBA` ↔ rice-CI texnum) and the D620-learned scale set — the 251 joined pairs use power-of-two upscale factors (32×/64× dominate; 4/8/16/128 occur), so a candidate must be an *exact* pow2 multiple in both axes. Result (ex-Hacks 1781 PNGs; the 264 `Hacks/Mario` are pack-original fan content — out of join scope by design, though their dims do match character model textures):
+
+| tier | ex-Hacks count | share |
+|---|---|---|
+| 0 candidates | 515 | 29 % |
+| 1–3 (auto) | 44 | 2 % |
+| 4–20 (scorer-friendly) | 60 | 3 % |
+| >20 | 1162 | 65 % |
+
+Median **104** candidates/PNG → the plan's gate (`≤~3` auto / `≤~10` scorer / else human) lands on **B5 human-in-loop** for the geometric tier. The zero tier splits as predicted by D622: `UI` 454/558 zero (Letters+Ammo are the in-exe echardata fonts, never registered — exactly out of plan), `Effects` 40, `Areas` 21 (model textures without vanilla dims in the 405-dim non-CI fill), `Objects` 9. The >20 tier is dominated by the 32×32 CI class (1007 rice texnums) matching any 1024×1024 PNG at 32×. The `joined` set is derived from pack keys (RiceCRC32 ∩ rice census = 256 texnums, D616/D620-stable); the first report build wrongly subtracted the whole 1744-row rice census (100 % zeros for the CI class) — fixed before these numbers.
+
+**Verdict.** The external-signal join is *verifiable* (folder→level + model pool = 98.8 % containment of the 257 known pairs) but **not discriminative geometric-only**: 65 % of in-scope PNGs have >20 geometric candidates and 29 % have none. Per the gate, Phase B proceeds to **B4 (content scorer)** for the >20 tier and **B5 (human review)** for the 0/low tiers — or the ceiling is reset to the 104 auto/scorer-friendly PNGs (44+60). Decision owed: scorer budget (1162 PNGs × ~100 candidates each) vs. human tail vs. both. Evidence: `scratch/join_ambiguity.csv` (per-PNG candidates), `scratch/level_texnum_census.csv`, `scratch/model_texnum_census.csv`, `scratch/b0/folder_texnums.json`.
+
+## D624: B4 content scorer built + tuned — the structural RGB-NCC scorer (dither-blurred, palette-invariant) beats CLIP on this pack: rank-1 56 % vs 33 % on the 257 ground-truth pairs; the GT-tuned auto-accept tier (margin ≥ 0.10) is 100 % precise on GT; the pipeline produces the human queue (189 auto / 1341 vision-pending / 515 out-of-scope)
+
+ROADMAP #100 Phase B4 (`docs/dev/TEXPACK-PLAN.md`), the decision committed 2026-10-07 (512e6d57 + 95d38637): replace the B3 geometric-only gate with a 5-stage AI-scorer pipeline — geometric prefilter (D623's `join_ambiguity.csv`) → content rank → GT-tuned auto-accept → vision judge (agent contact sheets) → human queue for disagreements. Tool: `tools_pc/texpack/content_scorer.py` (subcommands `rank` / `tune` / `verdicts` / `apply`). Stop point honoured: the human-queue artifacts are produced; Phase C was not started.
+
+**Scorer A/B (measured on the 255 ground-truth pairs in candidate scope — 256 known pairs, D620; 1 pair's true texnum has no geometric candidates).** The GT set is the right tuning instrument: these are *known-correct* pack-PNG → vanilla-texnum pairs, so rank-precision and the auto-accept margin are measurable without a human.
+
+| scorer | rank-1 / 255 | rank-≤5 / 255 |
+|---|---|---|
+| CLIP ViT-B/32 (native pack scale) | 70 (27 %) | 136 (53 %) |
+| CLIP ViT-B/32 (pack → vanilla-dims LANCZOS) | 85 (33 %) | 153 (60 %) |
+| CLIP ViT-L/14 (scale-matched) | 84 (33 %) | 141 (55%) |
+| grey NCC, dither-blurred | 138 (54 %) | 171 (67 %) |
+| **RGB 3-ch NCC, dither-blurred (adopted)** | **143 (56 %)** | **170 (67 %)** |
+
+The **structural scorer wins decisively** and the result is interpretable: the pack is HD *redrawn* art with regenerated palettes, while the vanilla side is 15-colour dithered N64 art — a large perceptual domain gap that hurts a learned semantic embedding (CLIP), whereas a downscale-to-vanilla-dims + mean-centred per-channel normalised cross-correlation with a 1/2× LANCZOS dither-blur on both sides is invariant to palette regeneration (the D620 hue problem) and only needs matching *structure*. CLIP is retained as `--scorer clip` for A/B, not deleted. Both sides' dither-blur is the load-bearing step (grey NCC without blur: 51 % rank-1; with blur: 54–56 %).
+
+**Auto-accept margin (tuned on the same 255 GT pairs, structural scorer).** margin = score(true) − score(runner-up):
+
+| threshold | auto tier | precision on GT |
+|---|---|---|
+| 0.00 | 163 | 89.0 % |
+| 0.02 | 132 | 100 % |
+| 0.10 | 97 | 100 % |
+| 0.20 | 61 | 100 % |
+| 0.30 | 40 | 100 % |
+| 0.40 | 23 | 100 % |
+
+(margin percentiles: p10 −0.335, p50 0.053, p90 0.369). The 100 %-precision region extends down to t≈0.02, so a 0.20 threshold (24 % of GT) is over-conservative. **Recommended t = 0.10** — 100 % GT precise, 38 % GT coverage; rows above it auto-accept, the rest route to the vision judge. Note the precision numbers are *on the 255 GT pairs* (the known-correct set); the GT pairs skew toward "easy" matches (they were CRC-joined), so the non-GT tail will be noisier — the vision-judge stage exists exactly for that, and a vision "none" on an auto row is the escape hatch (the auto tier is a *routing* decision, not a proof).
+
+**Pipeline output (`verdicts --threshold 0.10 --vision`), 2045 pack PNGs:** 189 auto (47 geometric n_cand≤3 + 142 margin≥0.10), **1341 vision-pending** (one contact sheet each — pack + top-5 structural candidates, labelled with NCC sims — under `scratch/join_review/`, plus the `answers.csv` template), 515 out-of-scope (the D623 zero-candidate tier, dominated by the in-exe `UI` fonts). 1341 splits as 17 n_cand≤15 (top-5 ≈ the whole candidate set, most vision-resolvable) vs 527 with >40 candidates (top-5 is a weak hint there; most will answer "none" and land in the human queue). `apply` merges filled answers: an on-top-5 pick = vision verdict; a "none"/off-list pick = **human queue** (`scratch/join_review/queue.csv` + `queue/` sheets for the maintainer) — verified end-to-end on a 3-row sample.
+
+**Tooling notes.** Vanilla renders: the B3/D616 decode path (zlib-CI + non-CI, N64 alt-row swap for lod>0, 5551 palette) verified against the pack's own CRC-joined PNGs (e.g. texnum 294). Caches: `scratch/clip_{tex,pack}_cache.npz` (CLIP, optional) and `scratch/ncc_van_cache.pkl` (vanilla NCC vectors, ~0.3 s to load; a full `rank` pass is ~90 s, ~20 s/variant of GT tuning with cached decodes). One bug caught in testing: the struct `rank` writer initially unpacked `(texnum, score)` pairs as `(score, texnum)` — every `margin` came out as a texnum-difference (~−425), silently zeroing the margin auto-tier (a wrong "960 auto" count); caught because the CSV columns were eyeballed against a known row before verdicts ran.
+
+**Status: B4 BUILT + TUNED, stop point reached.** The human queue exists (1341 contact sheets + template); judging the 1341 vision-pending sheets (agent or maintainer, batchable) and running `apply` to finalise `queue.csv` is the next step, then B5 review / Phase C (out of scope here, per the drop-in prompt). No port C, no game-code changes.
+
+
+**Addendum 2026-10-10 (auto-accept hygiene, `content_scorer.py verdicts`):**
+a row is never auto-accepted when (a) its folder starts with `Hacks/` or
+contains `Fan Translations` (now `out-of-scope`), (b) the pack image's
+class disagrees with the top candidate's live GBI format class (`ciByRGBA`
+-> CI only, `_all` -> non-CI only; unknown candidate -> disagree), (c) the
+top-two margin is below the threshold (the old "<= 3 candidates" shortcut
+now applies only to a single candidate), or (d) the same texnum would be
+auto-assigned to more than one pack image in the same folder (all such rows
+demote to `vision-pending`). Pure helpers (`auto_eligible`,
+`demote_duplicates`, `class_agrees`) checked offline on a synthetic list;
+the `apply` subcommand and scratch data were not touched. The 189-auto
+figure above predates these rules and will drop on the next `verdicts` run.
+
+## D625: texpack A5 — downscale-to-GL-max (separable LANCZOS3) instead of the D615 vanilla fallback, plus first-use decode-stall metering — a pack's 4K art now renders on low-end GPUs instead of silently dropping to the vanilla texture; worst-frame decode stall is attributable per frame
+
+ROADMAP #100 Phase A5 (`docs/dev/TEXPACK-PLAN.md`). Two changes, port-only (`port/fast3d/gfx_pc.cpp`, `port/src/texpack.c`, `port/include/texpack.h`):
+
+**Downscale-to-GL-max.** A5 size census: 12 of 256 community-pack files are 2048/3072/4096 on the long side — over the GL max of low-end GPUs (and over the 8K-capped upload buffer on nothing). Before D625, the D615 guard dropped such files to the vanilla texture, which on a low-end GPU silently kills the HD look for exactly the pack's hero art. Now: the PNG is already decoded RGBA, so one separable LANCZOS3 resize (radius 3, scale-normalised, weight-renormalised at edges) into a lazily-grown `dw x sh` work buffer yields the largest size the GPU can hold; the result goes through the existing texture cache (one-time per file). The downscale output is `<= max^2 x 4 = tex_upload_buffer_size` by construction, so the only vanilla fallback left is an OOM'd work buffer or a degenerate GL max < 2 (both logged, at most 8 lines each). Non-downscaled images still `memcpy` straight into the upload buffer (the D615 path, unchanged). `max_tex_size_cached` is used only by the texpack path, so vanilla uploads are unaffected. `GE_FAKEMAXTEX=<n>` (registered in `docs/dev/GE-ENV-PROBES.md`) caps the effective ceiling so the low-end path is testable on a high-GL-max machine.
+
+**First-use stall metering.** The PNG decode is synchronous on the render thread (under `g_lock`), so a first-use import's cost is exactly the time in `texpackDecode`. New counters (render-thread owned, no extra lock): total/worst-file decode ms, per-frame accumulation committed at a `gfx_start_frame` hook (`texpackFrameStart`, inert unless a pack is selected), evictions (FIFO pressure). Summary line every 16th decode and every decode over 5 ms, `fflush`'d (D622-class force-killed runs must not lose it to stdio buffering).
+
+**Status: BUILT, not yet A/B-verified** — the downscale path needs a `GE_FAKEMAXTEX` run on a real pack + a low-end (or emulated) GPU pass; the stall meters need one pack run to read the first-use spike shape. **Label note: D621–D625 on `feature/texpack` collide with the mainline allocation (main's D621–D625 are the Deck double-advance / stray-polygon / Surface-2 / cursor / rocket findings); the branch keeps its local labels and they are renumbered to the next free numbers at land time (the branch forked before mainline claimed that range).**
+
+
+## D626: Windows DPI awareness was never declared — the hint sat behind PD's `PLATFORM_WIN32`, which this port never defines, so scaled displays got a stretched logical-size surface
+
+**Status:** FIXED 2026-10-10 (`port/fast3d/gfx_sdl2.cpp`), ROADMAP §4 "Windows display scaling" row.
+
+**Symptom.** On a 3840x2160 display at 125 % Windows scaling, fullscreen rendered a 3072x1728 surface that Windows stretched (soft picture); the maintainer's v0.5.0 4K captures were all 3072x1728. Workaround that worked: `SDL_WINDOWS_DPI_AWARENESS=permonitorv2`.
+
+**Cause.** `gfx_sdl_init` set `SDL_HINT_WINDOWS_DPI_AWARENESS` only under `#if defined(PLATFORM_WIN32)` (inherited from the PD port) and only when HiDPI was disabled. `PLATFORM_WIN32` is defined nowhere here (`port/include/platform.h` defines `PLATFORM_WINDOWS`), so the hint never compiled in on any path.
+
+**Fix.** Guard on `_WIN32` and set `permonitorv2` unconditionally on Windows, before `SDL_Init(SDL_INIT_VIDEO)`. Ini Width/Height are physical pixels (a 1280x720 window is now 1280x720 device pixels, smaller on screen than before at >100 % scaling).
+
+**Verified.** Same machine (125 %): fullscreen frame dump 3072x1728 -> 3840x2160; windowed 1280x720 unchanged in pixels; Facility golden PASS. Audit: no other undefined `PLATFORM_*` guards in `port/` (the rest come from `platform.h`).
+
+## D627: DexDrive / GameFAQs `.n64` Controller Pak dumps load directly — `ge007.eep` may be the dump itself; the GoldenEye note is extracted and handed to the D514 importer (ROADMAP §5a)
+
+**Status:** verify 2026-10-10 (`port/src/eepimport.c`, `tools_pc/eep_convert.py`). Port-only; by-eye mission select with a real DexDrive save owed.
+
+**Format (confirmed from the 36,928-byte GameFAQs sample `goldeneye-007.1080.n64`).** 0x1040-byte DexDrive header (`123-456-STD`, comment text at 0x40), then the 32 KB Controller Pak (128 x 256 B pages). Pak page 1 = inode table (128 x u16 BE, low byte = next page, 1 = end of chain); pages 3-4 = note table (16 x 32 B; game code @0, publisher @4, start page u16 BE @6). The GE note is code `3BADD1E5`, start page 5, chain 5 -> 6 -> end = 2 pages = the 512-byte cartridge EEPROM. Those 512 B zero-padded to 2048 are byte-identical to the previously hand-extracted `gamefaqs_dexdrive_2001.eep`, and all 6 regions convert under D514.
+
+**Implementation.** `geEepImportDexDriveSave(path)` runs first inside `geEepImportEmulatorSave` (no libultra.c change): file must start with `123-456-STD` (else untouched, old path), be at least 0x1040+0x8000 bytes (tail ignored, 1 MB read cap), contain a note with code `3BADD1E5` and start page 5..127, whose inode chain is exactly 2 pages, in range, ending at 1 (loop/out-of-range chains rejected). Original is backed up to `ge007.eep.dexdrive.bak` (.bak2... never overwriting), then `ge007.eep` is rewritten as 2048 B and the ordinary D514 conversion runs (second backup `.emulator.bak` of the extracted bytes). Any failure: one `eep:` LOG_ERROR line, file untouched, no backup; the game then treats it like any wrong-size/invalid save (its first 2048 bytes are header junk, every region fails CRC, slots wiped on first write) — same as before this change. `eep_convert.py dexdrive-to-pc IN.n64 OUT.eep` does the same offline.
+
+**Verified (no game window).** Build clean (no new warnings in eepimport.c; `abi_ratchet` OK). gcc harness around the real `eepimport.c` with a C `fileGenerateCRC`: the sample .n64 -> extraction identical to the reference, final file byte-identical to `eep_convert.py dexdrive-to-pc` output; truncated, header-only, magic-only, no-note, looping chain, out-of-range chain, bad start page: all rejected, file untouched, no backup. Plain emulator save path unchanged (identical output).
+
+**Owed:** drop a real DexDrive dump in as `data/ge007.eep` and check mission select / unlocks by eye. Other Controller Pak dump formats (raw `.mpk`, no header) are not handled.
+
+## D605: #145 "Invert look" inert under the game's own original styles (v0.6.0) -- FIXED 2026-10-09 (port-only; live pad pass owed)
+
+**Status: FIXED 2026-10-09 (v0.6.0 line, branch `fix/v060-pad-look-invert`).
+Two port-only changes; build green (Windows, v0.5.1 base). The issue
+reporter's live pad pass (Classic controls + 1.1, both invert states,
+watch row) is owed; the face-button/menu-role questions of the issue are
+the separate maintainer decision on the v0.6.0 ROADMAP row.**
+
+**Bug (GitHub #145, reported on v0.5.0):** with F10 "Control style"
+= Classic/Original + controller style 1.1, toggling F10 "Invert look"
+(`Input.PadLookInvertY`) had no in-game effect on vertical aim, and the
+game's own in-watch "Look up/down" row looked locked (it is the game's
+own UI, but D564 pins the value to its factory default every tick, so
+any change reverts).
+
+**Part (a) -- the port's row missed the look stick.** In the HONEY role
+(game styles 1.1/1.3; the port presets 1.2 Christmas / 1.3 Frost run it
+too, the latter with the D498/D518 physical stick swap) the LEFT stick
+is the analog look stick and the right stick feeds the digital
+C-button movement (E/D/C/F thresholds) -- the reverse of the SOLITARE
+role (1.2/1.4, where the right stick looks and is inverted on its
+scaled channel already). `inputPoll` inverted the right-stick raw in the
+HONEY branch, i.e. the *movement* C-button source, while the look
+channel passed through untouched. Fix (`port/src/input.c`): invert the
+left (post-swap look) channel `py` there, and stop inverting `ry`. The
+SOLITARE branch already inverted its look channel; menus are untouched
+(menu navigation always sources the left stick before this logic).
+Semantics: `Input.PadLookInvertY` now inverts the stick that LOOKS in
+the active role, in both schemes.
+
+**Part (d) -- the D564 pin now respects the scheme.** D564 removed the
+port UI row for the game's own "Look up/down" (`Bond.Look`) and pinned
+`cur_player_look_vertical_inverted` to 0 so a stale value could not flip
+the pad stick on the game's pitch path. In the Modern scheme that stays
+correct (the port writes the view directly on the mouse/centred-pad
+paths). In the ORIGINAL scheme the game honours the setting on the N64
+stick-pitch path (`bondview2.c` builds `moveData.invertPitch` from it),
+so pinning it removes the player's native control -- exactly the
+"locked" watch row the issue reports. Fix (`port/src/watchsettings.c`):
+gate the pin on `inputControlScheme() == 0` (new accessor over the D513
+`Input.ControlScheme`); in Original mode the in-watch row is the live
+control again, as on the N64, and the F10 rows still apply on top (a
+player who sets both inverts twice -- their choice, as on any system
+with two inversion layers).
+
+**Verification owed (maintainer / issue reporter):** Classic + 1.1 with
+a pad: F10 Invert look on/off flips vertical aim; the in-game watch
+"Look up/down" row accepts its toggle and takes effect; Modern scheme
+unchanged (pin still on, F10 rows as before). Build-checked only so far
+(the invert path is a sign flip in the pad poll; no headless probe
+covers it -- `GE_PADMAPTEST` exercises the action table, not this).
+
+## D606: #144 optional PD-style always-visible mission timer (v0.6.0) -- FIXED 2026-10-09 (port-only; smoke-verified, live level pass owed)
+
+**Request (v0.5.0 issue triage, #144):** an optional, always-on-screen
+mission timer, PD-style. Port-only QoL; must not move a golden byte when
+off.
+
+**Source of the time (the faithful N64 mission clock, not a wall
+clock):** `lvlGetCurrentMultiPlayerSec()` (`src/game/lv.c:1764`,
+declared `lv.h:79`) returns `g_CurrentMultiPlayerSec`, which
+`lv.c:1306/1308` advances each tick by the region clock accumulator:
+`D_80048394 += g_ClockTimer; g_CurrentMultiPlayerSec = D_80048394 /`
+`(50.0f on VERSION_EU, else 60.0f)`. That is the same accumulator the
+in-game watch TIME page and the `AI_IFMissionTime` conditions read, so
+the on-screen number is exactly the game's own mission time -- it runs
+while a stage is active and the menu is static, matching the N64
+watch.
+
+**Implementation (`port/src/optionsoverlay.c` only, `src/game`
+zero-diff):**
+- New F10 toggle row `Game.MissionTimer` (label "Mission timer",
+  `kOnOff`), default 0, registered in `overlayConfigInit` and in
+  `kResetDefaults`; row help added to `kRowHelp`.
+- `missionTimerTick()` runs once per emitted frame (same cadence as the
+  D213 FPS readout above it in `overlayEmitLocked`): with the toggle
+  off, or outside an active stage (`current_menu` neither
+  `MENU_RUN_STAGE` nor `MENU_INVALID`), no text is produced and the row
+  simply does not exist on screen; otherwise it formats the clock as
+  `TIME M:SS` (H:MM:SS at 3600 s and up).
+- Emit path: the closed-panel mini DL (top-right, green 0x40ff60ff,
+  same style as the D213 FPS line) now draws the FPS readout at y=6 and
+  the timer under it at y=22 when both are visible; the `!s_open` early
+  return fires only when neither has text, so with the toggle off the
+  overlay appends nothing and the golden dumps stay byte-identical.
+
+**Verification (2026-10-09, worktree smoke run):** 1200-frame @60 fps
+run with `Game.MissionTimer=1` renders **"TIME 0:20"** in the top-right
+(1200 frames / 60 = 20 s -- the timer tracks the game clock exactly,
+not wall time); the crop confirms placement and the green readout
+style. Build green. **Owed:** a live multi-minute level pass (the H:MM:SS
+format at 60+ minutes, and any overlap with other top-right content on
+a small window) -- cheap for the maintainer to eyeball.
+
+## D628: the HD-pack join's exact-CRC half holds up; its structural half was scored against dumps of the pack itself (ROADMAP #100)
+
+**Status:** CI half ACCEPTED, structural half VOID, 2026-10-10. Tooling +
+join table landed on `feat/texpack-join` (`tools_pc/texpack/gehd_join.csv`,
+`gehd_join.py`, `gehd_build.py`, `geh_spotcheck.py`); no port C change. The
+work was produced by the maintainer's local model; this entry is the
+integrator's verification of it.
+
+**What holds (independently re-verified, no game run).** 256 join rows, one
+per texnum, 256 distinct texnums (4..2696), no `Hacks/` rows. Cross-checking
+every row's pack filename against `scratch/rice_ci_fresh.csv`: **256/256
+agree on `(crc, fmt, siz)`** - the join is exact texel identity (D616's
+big-endian RiceCRC32), which is what makes it safe without any art judgement.
+The one palette-variant collision (texnum 4, `UI/Checkmark`) is resolved
+towards the variant whose pack palcrc equals the ROM palcrc (`5f045394`),
+with the loser logged. `gehd_build.py --dry-run` resolves all 256 sources,
+0 missing, 0 `(stage,texnum)` duplicates. Coverage is 251/2046 pack PNGs
+(14.1 % excluding `Hacks/`): levels whose area art the pack kept in CI join
+well (Statue 12/12, Jungle 13/15, Streets 23/30), the non-CI bulk
+(Effects 734, UI 558, Aztec 27) joins nothing.
+
+**The trap.** `GE_TEXDUMP` writes the texture **the GL upload receives**, and
+`texpackReplacement` has already substituted by then - so a dump taken with
+`Video.TexturePack` set *is* the pack image. In `scratch/b0/` (the D622
+Bunker-1 + front-end runs) **52 of 346 dumps are pack-substituted**: tn 26,
+151 and 205 are byte-identical to their pack PNG (max channel diff 0), at
+1024x1024 / 512x512 where the ROM texture is 32x32. All **45** CRC-joined
+texnums that the `precision` subcommand used as its hold-out are inside that
+52, so its "45/45 rank-1, NCC = 1.000" compares each pack PNG against a dump
+of itself. It measures nothing.
+
+**What the contamination then broke.** From those dumps the report concluded
+"HD packs replace at the same pixel size (45/45 identical dims, 0 diff-dim)"
+and rewrote the structural matcher to score only candidates whose dump dims
+*exactly equal* the pack's. The premise is false - against the ROM census the
+same 256 pairs are uniform upscales: 4x(1), 8x(1), 16x(30), 32x(135),
+64x(83), 128x(6), **0 at 1x** - which is D620's own 4x-128x measurement. With
+a real (vanilla) dump the true candidate is 32x smaller than the pack image,
+so the exact-dims gate excludes it by construction: the reported
+"0 structural matches, correctly rejected by the confidence bars" was
+**unmatchable, not rejected**, and the uniform-tile top-1s it saw (texnum 668
+x407, 264 x230) are the handful of other *contaminated* dumps that happened to
+share the pack's dims.
+
+**Gate rebuilt.** `Scene.scores` now admits a candidate when its dims are
+`pw/k x ph/k` for one common factor - same aspect ratio, no larger - and
+scores at the candidate's resolution (one LANCZOS coarse per query, BILINEAR
+per target, through the pre-existing helpers). This keeps the protection the
+exact-dims gate was reaching for (the 256x96 glyph *strip* vs the 64x32 glyph
+that produced the confident wrong match on texnum 83 is an aspect mismatch,
+so it is still excluded) without excluding every true pair. Smoke on the
+contaminated dumps: candidate pool median 168 (was effectively 0), 45/45
+hold-outs rank 1 - still circular on those dumps, so it proves the code path,
+not accuracy.
+
+**Non-CI is not a CRC problem (reconfirmed).** 1488 non-CI non-`Hacks` pack
+PNGs against the 953-row non-CI census: **0** `(crc,fmt,siz)` hits and 0
+crc-only hits - i.e. D540/D620 reproduce exactly. The report's reason ("the
+pack re-encoded that content") is right; the correction is only that this is
+settled, not newly open.
+
+**Decision / next step.** The CI half ships as the `gehd` pack (exact
+identity, no art judgement). The request for per-level `GE_TEXNUMDUMP` +
+`GE_TEXDUMP` runs on the other 15 levels is **declined**: it would need the
+pack switched off to be worth anything, and the existing D623/D624 pipeline
+already scores against python-decoded vanilla renders of the ROM - no game
+run at all, scale-aware, GT-tuned, with the 189-auto / 1341-sheet queue
+already built. Picking that tail up is a cheap-worker job, post-release.
+
+**One wart for whoever resumes D624:** `scratch/join_verdicts.csv` contains
+**63 `auto` rows for pack PNGs that already have an exact-CRC answer**, scored
+against a pool from which their own texnum was removed as already-assigned -
+so all 63 name a wrong texnum. Harmless as long as exact-CRC wins the merge
+(it does in `assemble`), but they must be dropped before any `apply`, and
+they are not evidence against D624's GT precision.
+
+## D632: exit BSOD 0x119 again - the kernel's process-exit GPU cleanup, not the game's quit ordering
+
+**Status:** FIXED 2026-10-10 on `fix/d632-exit-teardown` (off
+`release/v0.7.0`); port-only. Exit paths live-verified (addendum below).
+
+**Report.** The maintainer exited the game (texpack build, manual play
+session); the PC bugchecked 0x119 VIDEO_SCHEDULER_INTERNAL_ERROR, P1 0x3000,
+and rebooted (20:30). The game log ends in NUL padding (OS went down before
+its file cache was flushed). Same bugcheck as D344.
+
+**Evidence (first readable minidump, `!analyze -v`).** Process
+`ge007.x86_64.exe`; failure bucket
+`0x119_3000_UNKNOWN_dxgmms2!VidSchiDecrementHwQueueReference`. Stack, top
+down: `watchdog!WdLogEvent5_WdCriticalError` <- `dxgmms2!VidSchiDecrementHwQueueReference`
+<- `VidSchTerminateHwQueue` <- `dxgkrnl!DXGHWQUEUE::DestroyCoreState` <-
+`DXGCONTEXT::DestroyContext` <- `DXGDEVICE::DestroyDevice` <-
+`DXGPROCESS::Destroy` <- `DxgkProcessNotify` <- `nt!PspExitProcess` <-
+`NtTerminateProcess`. No game frame on the stack: the game had already
+exited; the kernel was destroying the GPU device and the hardware queues
+(hardware-accelerated GPU scheduling) that the process left behind, and its
+queue reference count was inconsistent. dxgkrnl 10.0.19041.7725,
+nvlddmkm 2026-09-04.
+
+**Why D344 did not cover it.** D344 makes the render thread `glFinish` and
+unbind the context at a frame boundary, then `exit(0)`. The context itself
+(and the window) were never destroyed, so every exit still handed the GL
+device + hardware queues to the kernel's process-exit cleanup - the path that
+faulted.
+
+**Fix.** `portAtExit` (after the window state and config are saved, before any
+D443 relaunch) calls `videoTeardownForExit()`: if the render thread parked,
+`gfx_sdl_teardown_for_exit()` deletes the GL context (`SDL_GL_DeleteContext`)
+and destroys the window while the process is alive, so the driver retires its
+queues through the normal context-destruction path. On a park timeout the
+teardown is skipped (the render thread may still be inside the driver);
+logged either way (`video: GL context and window destroyed` /
+`video: render not parked; GL teardown skipped`).
+
+**Confidence: medium.** The dump pins the faulting path to process-exit
+destruction of leftover GPU state, and the fix removes that state first; but
+the bugcheck is intermittent and is ultimately a driver/OS fault (HAGS queue
+refcount), so only exits without a bugcheck over time will show whether it
+holds. Workaround if it recurs: Windows Settings -> Display -> Graphics ->
+hardware-accelerated GPU scheduling off.
+
+**Verification owed (maintainer, when runs resume):** a few normal exits
+(menu Quit, window close, Alt+F4); each log should end with `video: exiting
+(render parked ...)` followed by `video: GL context and window destroyed`.
+
+**Addendum (2026-10-10, first live exits).** Menu Quit: `render parked after
+3 ms` -> `GL context and window destroyed`, no bugcheck. Window close:
+`render idle after 0 ms` -> `render not parked; GL teardown skipped` - the
+host's wait loop (D344) only waited while a frame was in progress, so a quit
+landing between frames exited before the render thread parked and the
+context still fell to the kernel. Fixed: the host waits for the park itself
+(bounded by QUIT_WAIT_MS); the next frame start parks instead of drawing, so
+it costs about one frame. **Re-checked 2026-10-10 (maintainer, integration
+build):** window close `render parked after 21 ms`, Alt+F4 `render parked
+after 6 ms`, each followed by `GL context and window destroyed`; no bugcheck /
+unexpected-shutdown events. All three exit paths now tear down in-process.
+Whether this removes the bugcheck for good can only show over time (it was
+intermittent); HAGS off remains the fallback.
+
+## D636: the non-CI fingerprint join was one swap rule away - 203 exact joins, and they correct the picture join
+
+**Status:** FIXED 2026-10-10 on `feat/texpack-fp` (off `release/v0.7.0`);
+tools + join table only, no port change. Follows D635.
+
+**Cause of the old 0/17.** `rice_nonci.py` (D617) hashed the alt-row-swapped
+pool only for textures with explicit LODs; everything else was hashed
+unswapped. The game runs `texSwapAltRowBytes` on every level of every texture
+(D149), so the RDP - and an emulator's fingerprint - always sees swapped
+rows. With the swap applied to every texture the census (953 non-CI
+textures) matches **203** texnums against the pack's `crc#fmt#siz` keys (17
+before). The load-width variant tested alongside made no difference here
+(unlike the font, D635). D540/D620's "the pack hashes its own re-encoded art"
+reading was wrong for the same reason D635's first probe was: an emulator
+looks a replacement up by the original texture's fingerprint.
+
+**Cross-check.** Of the 203, 136 had an independent picture/vision/maintainer
+join: 122 agree, 14 disagree. Every disagreement is a near-identical variant
+on the wrong texnum (35<->36, 284<->307, 145/146, 948/949, 1088/1089,
+440/441, 715/716, ...): a 32-bit CRC + format key cannot produce a neat swap
+of two siblings, so the picture join was wrong. Rebuilding the local pack
+exact-first dropped 30 picture picks whose image is exactly another
+texture's; 61 matcher labels (D631) were corrected to the exact owner.
+
+**Result.** `gehd_join.csv` now carries 459 exact rows (256 CI + 203 non-CI,
+method `exact-crc-nonci`), built by `gehd_join.py nonci <packroot>
+<rice_nonci.csv> <out>`. Local pack: 511 texnums (459 exact + 52 picture
+picks that no exact join contradicts). Lesson for the join: run the
+fingerprint join first and use picture matching only for what it cannot key
+(it has no reach into textures whose pack art is keyed by a different load).
+
+## D637: fingerprint fallback for textures without a texture number (the font)
+
+**Status:** BUILT 2026-10-10 on `feat/texpack-fp`; port-only, inert unless
+the selected pack has an `fp/` folder. Not run-verified (game runs on hold,
+D632): the first launch should show the HD font in the menus and HUD.
+
+**Loader** (`port/src/texpack.c`). `texpackInit` also scans
+`<pack>/fp/` (recursively, a few levels) for files named
+`GOLDENEYE#<crc>#<fmt>#<siz>...png`, adds them to the file table under a
+stage of their own (never matched by a texnum lookup; same decode cache,
+2048 cap and LRU as every pack file) and builds a sorted key index
+(crc, G_IM_FMT, G_IM_SIZ; first file wins per key). `texpackRiceCrc` is the
+GlideHQ/RT64 RiceCRC32 (big-endian words, word hash carried into the row
+end); checked equal to the Python implementation (`font_key_probe.py`,
+`rice_hq`) on 80 glyphs read from the ROM font banks.
+
+**Renderer** (`import_texture`). After a texture-cache miss, a texture with
+no registered texture number and a non-CI format is fingerprinted: row bytes
+= the render tile's line (`(width+7)&~7` bytes for the I8 font, the D635
+match condition), height = the tile's, row stride = the full image line for
+a LoadTile window, else the row; bytes in N64 order via
+`gfx_tex_normalize_source`, clamped to the loaded extent. A hit uploads the
+pack image under the vanilla cache key (so it is computed once per cache
+entry) through the same path as texnum replacements, including the D615
+transparency rules. Textures that have a texture number are untouched.
+
+**Builder.** `gehd_build.py --fp [folders]` copies pack folders under
+`fp/` keeping their names (default `UI/Letters`, the font). The authoring
+guide documents `fp/`.
+
+**Not covered yet:** paletted (CI) textures without a texture number (their
+emulator key also carries a palette CRC).
+
+## D638: HD ammo icons cut off - pack images vs the padded TMEM line
+
+**Status:** FIXED 2026-10-10 on `chore/v070-agentic-batch` (off
+`release/v0.7.0`); port-only. Maintainer report: "the ammo icon doesn't line
+up quite right, gets cut off" (the AK's).
+
+**Cause.** The vertex path normalises S/T by `tex_width`/`tex_height`, the
+render tile's TMEM line in texels (`line_size_bytes` per `siz`), which pads
+each row to the 8-byte line: the RGBA32 HUD ammo icons are 5-14 texels wide
+and are sampled as 8 or 16. A vanilla upload is that padded width, so the
+visible texels sit where the coordinates expect them. A pack image is drawn
+at the *visible* size (e.g. 160x384 = 32 x 5x12), so stretching it over the
+padded width showed 5/8 of the art, squeezed. Power-of-two surfaces (floors,
+walls) are not padded, which is why only small odd-width art showed it.
+
+**Fix.** In the pack upload path, after the GL-max downscale: if the tile's
+line exceeds its visible size (`(lrs-uls)/4+1`, `(lrt-ult)/4+1`) and the
+pack image scales the visible size uniformly (|sx - sy| <= 1 %), the image is
+copied onto a canvas of `line x scale` with the last column/row replicated
+into the padding, so the sampled region matches the original exactly. A
+tile that windows a larger image fails the uniform-scale test and is left
+alone; the canvas must fit the GL max and the upload buffer.
+
+**Verified** (headless `-level_33`, GE_PCDUMP, GE_QUITFRAME): `D638: texpack
+image 160x384 padded to 256x384 (visible 5x12 of a 8x12 TMEM tile)`, 80x448
+-> 128x448 (5x28 of 8x28), 1728x1728 -> 1792x1728 (54x54 of 56x54); the HUD
+cartridge renders whole and in proportion. Clean exit (render parked, GL
+teardown).
+
+## D639: exclusive fullscreen took the window size as the monitor mode
+
+**Status:** FIX BUILT 2026-10-10 on `chore/v070-agentic-batch`; port-only.
+Not live-verified: needs the maintainer's NVIDIA setup ("OpenGL present
+method = Prefer native", where it was seen 2026-10-09 during D583).
+
+**Cause.** `set_fullscreen` calls `SDL_SetWindowFullscreen(wnd,
+SDL_WINDOW_FULLSCREEN)` for `Video.FullscreenMode = 1`. Exclusive mode
+switches the display to the window's fullscreen display mode; none was ever
+set (`gfx_sdl_set_closest_resolution` exists in the window-manager API but
+nothing calls it), so SDL picks the mode closest to the current window size -
+e.g. the ini's 1440x1080 window - instead of the desktop resolution.
+Borderless (`SDL_WINDOW_FULLSCREEN_DESKTOP`) never changes the mode, which is
+why it was fine.
+
+**Fix.** Before entering exclusive fullscreen, set the window's display mode
+to the desktop mode of the display it is on; an explicit
+`set_closest_resolution` (none today) still wins.
+
+**Check owed:** Video.FullscreenMode = Exclusive, a non-native window size,
+toggle fullscreen: the monitor should stay at its native resolution.
+## D643: Original control style = a strict virtual N64 pad (#145 b/c, #149)
+
+**Status:** BUILT 2026-10-12 on `feat/original-pad`; port-only (`port/src/input.c`),
+Modern/Ext path untouched. Confidence: HIGH that the mapping is exactly the
+table below (GE_PADMAPTEST proves every source, in stage/menu/tank, plus remap
+and guards); MEDIUM on the stick-feel numbers (assumption, see below); live pad
+pass owed.
+
+**Cause.** `padMapPure` mapped pad buttons to port actions: PA_USE/PA_RELOAD
+ran dedicated `bond_interact_object()` / `attempt_reload_item_in_hand()` calls,
+so one button bound to both opened a door and reloaded (#149); the game's own
+native B ("use if usable, else reload", lv.c) only ran on a native B bit.
+Outside a stage a fixed lockout sent A,X -> A and B,Y -> B, so West accepted
+instead of going back (#145 c). PA_CROUCH / PA_GADGET / PA_PREVWPN had no N64
+button at all.
+
+**Fix.** With `Input.ControlScheme = 1` the published `PadBinds` carries an
+N64-button table (`n64[NB_*]`, up to two pad sources per button, per seat =
+pads[] index, D448/D518) and all port-action masks are zero, so
+`padMapPure` (flag `PadMapCtx.orig`) just ORs the bound native bits in every
+context and returns (no crouch, gadget edge, southpaw swap, dedicated
+use/reload; the slot-0 dedicated path reads no pad). Defaults (Switch Online
+N64 convention): South=A, West=B, RT=Z, LT/RB=R, LB=L, Start, D-pad=D-pad,
+right stick=C (digital, 50% threshold, fixed), left stick=analog; North/East
+and the stick clicks unbound. Back opens F10. Keys: `Input.N64Pad.<Btn>` (seat
+1) / `Input.N64Pad2..4.<Btn>`; Btn = A B Z R L CUp CDown CLeft CRight Start
+DUp DDown DLeft DRight; values are kPadSrc names ("a", "lefttrigger,rightshoulder",
+"none"). Guards: Start unbound -> default; A and B both unbound -> both
+default. The table is part of the config signature (rebuilt lock-free into the
+spare buffer as before). UI: ini-only (the F10 rebind rows are action-shaped
+and do not generalise cheaply; not added).
+
+**Sticks.** In Original the SOLITARE role swap is no longer applied: left
+stick is always the analog stick, right stick the C-buttons (D605's invert
+on the look channel is unchanged). `Input.N64StickFeel` (1 default, 0 = the
+Modern `scaleAxis` deadzone+rescale): 1 = linear 32767 -> +/-80 (STICK_MAX)
+with a fixed 2500/32767 (~7.6%) centre deadzone, no rescale. **Assumption to
+confirm vs 1964 / the N64 manual:** the 2500 deadzone figure and per-axis
+(not radial) application. The port had no acceleration curve in the pad path;
+what it added in Original was the user deadzone (25% default) rescale -- that
+is what the switch bypasses (look sensitivity/smoothing only existed in the
+now-bypassed SOLITARE branch).
+
+**Verify.** `GE_PADMAPTEST=1 GE_QUITFRAME=3 ge007.x86_64.exe` (needs a GL
+window; SDL dummy video fails): preset0 == legacy 20971520 cases 0 mismatches,
+Original per-source table x 3 contexts, remap/seat independence,
+unbound-fallback, stick -> PASS.
+
+## D644: File-select royal crest drew with an opaque dark square (#146): IA4 decoded as I2:A2 instead of I3:A1
+
+**Symptom.** Each file-select folder's gold crest sat on an opaque dark noisy square; N64/1964 shows only the gold.
+
+**Evidence.** `GE_D526` census at frame 1150 (crest region): the crest is four 65x65 tiles, `fmt=3 (IA) siz=0 (4b)`, 2-cycle, `oml=0x0c184340` (FORCE_BL, blend CLR_IN*A_IN + CLR_MEM*(1-A_IN)), `comb=0x00f38e4f020a2d12` (alpha = tex alpha x shade alpha); the blender path was already correct (`alpha=1`). The raw texture (`GE_TEXRAW`) holds only nibbles {0, 2, 4, 15}. Real RDP IA4 is I3:A1 (nibble = I<<1 | A): 15 = opaque white, 0/2/4 = transparent (A=0). `import_texture_ia4` (D266) decoded I2:A2, so nibble 2 -> alpha 170 and nibble 4 -> alpha 85 with black intensity: the dark square. D266's "hardware-correct" claim was never verified (its own census found zero IA4 draws at its target scene).
+
+**Fix.** `port/fast3d/gfx_pc.cpp` `import_texture_ia4`: I3:A1 (intensity = nibble>>1 scaled by 255/7, alpha = nibble&1 ? 255 : 0). Removed the I2:A2 comment on `SCALE_2_8` (macro kept, unused). Before/after crops: `crest_before.png`, `crest_after.png`.
+
+**Scope.** Every IA4 texture in the game (any level or UI). Needs the lead's sweep/verify.sh re-run; the old I2:A2 tree-strip motivation (D236/D265) never reproduced as an IA4 draw.
+
+**Confidence.** High for cause and fix on the file-select crest (visually verified, gold intact). Medium on other IA4 users until the sweep.
+
+## D645: Original 1.1: F10 "Invert look" did not invert vertical look (#145 a, follow-up to D605/D643)
+
+**Symptom.** Maintainer playtest 2026-10-12 (Original control style, 1.1): toggling F10 "Invert look" did not change vertical look.
+
+**Cause.** D605 inverted the left stick's Y in the HONEY role. In 1.1 the left stick moves; hip-fire pitch is C-up/C-down (the right stick under D643's strict pad) and the game applies its own "Look up/down" option (`moveData.invertPitch`) to C-buttons and the aim-mode stick. The port's row never reached that path.
+
+**Fix (port only).** `port/src/input.c`: the HONEY-role stick flip is skipped in Original; accessors `inputPadLookInvert` / `inputSetPadLookInvert`. `port/src/watchsettings.c`: in Original, F10 "Invert look" and the watch "Look up/down" row are one setting: whichever changed since the last tick wins, and on stage entry the F10 row wins. Modern scheme unchanged (the D564 pin still applies there).
+
+**Status.** FIXED, maintainer-verified 2026-10-12 on Windows: inverts in 1.1; the F10 and watch rows stay in sync.
+
+## D646: F10 dropdown popup drew over the hint/tooltip panel
+
+**Symptom.** Maintainer 2026-10-12: the Video page "Frame rate cap" dropdown opened downward over the tooltip panel below the settings box (both translucent, text overlapped).
+
+**Cause.** `ddGeom` (`port/src/optionsoverlay.c`) only flipped the popup upward when it would pass the screen edge (`ovH() - 4`), not the settings box bottom (`o.bottom`); the hint panel sits between the two.
+
+**Fix.** The popup is bounded to the settings box (`o.titleB + 1` .. `o.bottom - 1`): it opens upward when there is no room below, and the D568 fallback now pins it flush to the box bottom instead of the screen.
+
+**Status.** FIXED, maintainer-verified 2026-10-12.

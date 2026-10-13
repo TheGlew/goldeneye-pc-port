@@ -9,7 +9,7 @@ description: >-
 # and the WebPage JSON-LD dates). Keep these equal to the last real content
 # change of THIS page, not to the last release.
 date: '2026-10-05'
-modified_time: '2026-10-10'
+modified_time: '2026-10-13'
 locale: en_US
 # The masthead is this page's title, so its first content h2 must NOT get the
 # amber page-title look (double header). See the .flat-title rule in
@@ -32,9 +32,9 @@ Rare "Indy" engine family, one hardware generation apart.
 
 <div class="cblock" markdown="1">
 
-### v0.6.0 (RELEASE-DATE) — frame rates above 60, experimental macOS, fixes.
+### v0.6.0 (2026-10-13) — frame rates above 60, experimental macOS, fixes.
 
-- **Frame rates above 60:** the frame cap offers 90, 120 and 144, and **Auto**
+- **Frame rates above 60:** the frame cap offers 90, 120, 144, 165 and 240, and **Auto**
   (the default on fresh installs) matches your display. Frames between game
   ticks are blended; the game still simulates at its original rate. It costs
   one game tick of latency and does nothing on a 60 Hz display. A rework of

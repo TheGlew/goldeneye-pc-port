@@ -205,3 +205,11 @@ tools_pc/sweep-captures/**/*.ppm
 # referenced by no project tooling. Never commit.
 /Python/
 docs/media/*.mp4
+
+# mod-loader tool build artifacts
+/tools_pc/modpatch/modpatch.exe
+
+# demo harness data (tools_pc/demobatch.sh): personal recordings + run output
+demos/
+demobatch/
+levelbench/

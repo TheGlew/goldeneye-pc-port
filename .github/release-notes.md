@@ -15,8 +15,9 @@ This release is v0.5.0 plus frame rates above 60, an experimental macOS port
 and a batch of fixes.
 
 - **Frame rates above 60.** The *Frame rate cap* (`Video.FpsCap`) now offers
-  **90, 120 and 144**, and an **Auto** setting that matches your display's
-  refresh rate (up to 144). Auto is the default on fresh installs; an existing
+  **90, 120, 144, 165 and 240**, and an **Auto** setting that matches your
+  display's refresh rate (up to 240; 165 and 240 have had less testing than
+  90 to 144). Auto is the default on fresh installs; an existing
   `ge007.ini` keeps its value. Extra frames are blended between game ticks, so
   the game still simulates at its original rate. It costs one game tick of
   extra latency, does nothing on a 60 Hz display, and the *Original N64*
@@ -32,7 +33,14 @@ and a batch of fixes.
   native-widescreen picture on front-end screens, and the first launch opening
   on the wrong monitor (#151).
 - **Crash fixes:** the Linux end-credits crash (#152) and a crash when a guard
-  spawned wearing a hat (#153).
+  spawned wearing a hat (#153, #156).
+- **Original controls are now original (#145, #149).** With *Control style*
+  set to Original, a gamepad behaves as an N64 controller: South is A, West is
+  B, and the game decides what each button does, so B opens a door or reloads
+  (not both), A changes weapon, and B goes back in menus. *Invert look* works in
+  every original style and stays in sync with the watch's *Look up/down*.
+- **Mission timer (#144)**, the file-select crest drawing on a dark square
+  (#146), and a fix for a Windows exit crash.
 
 Checked on PC at 120 Hz with VSync on a G-Sync display, and on the Steam Deck
 at 90 fps.
@@ -43,12 +51,13 @@ at 90 fps.
 
 ### Frame rate
 
-- **Auto, 90, 120 and 144** join 30 and 60 in the F10 *Frame rate cap* row.
+- **Auto, 90, 120, 144, 165 and 240** join 30 and 60 in the F10 *Frame rate cap* row.
   Above 60 the port draws extra frames between game ticks by blending the
   previous and current frame. It only applies when the display is faster than
   60 Hz; on a 60 Hz display nothing changes.
-- A fresh install uses **Auto**, so a 90 Hz screen runs at 90 and a 144 Hz
-  monitor at 144. The *Original N64* display mode sets the cap to 60.
+- A fresh install uses **Auto**, so a 90 Hz screen runs at 90, a 144 Hz
+  monitor at 144 and a 240 Hz monitor at 240 (faster displays hold at 240).
+  The *Original N64* display mode sets the cap to 60.
 - A fast camera turn, or a large change in what is on screen, falls back to a
   full frame instead of a blend.
 - The Steam Deck at 90 is good on most levels (see the known issues).
@@ -59,11 +68,31 @@ at 90 fps.
   automatically by CMake). The 64-bit address fixes this needed (textures,
   input, animation and multiplayer crashes) are in the shared code and have no
   effect at base 0 on Windows and Linux.
-- Build from source with Homebrew's GNU `gcc`; there is no download. The
-  x86_64 macOS code (Julio C. Rocha's #88) is in the tree but was never
+- There is a `macos-arm64` download, or build from source with Homebrew's
+  GNU `gcc`. The x86_64 macOS code (Julio C. Rocha's #88) is in the tree but was never
   verified on Intel hardware.
 
+### Controls
+
+- **Original control style = an N64 controller** (D643). Every press sends the
+  real N64 button in levels, menus, the watch and the tank; no port-only
+  actions are added. Default layout: South = A, West = B, right trigger = Z,
+  left trigger / RB = R, LB = L, right stick = C-buttons, D-pad and Start as
+  is. Each N64 button can be moved per player in `ge007.ini`
+  (`Input.N64Pad.A = a`, `Input.N64Pad2.B = x`, ...). `Input.N64StickFeel = 1`
+  (default in Original) gives the N64's linear stick range; 0 keeps the
+  previous feel. The Modern style and keyboard/mouse are unchanged.
+- **Invert look** reaches every original style (D605) and, in Original, is the
+  same setting as the watch's *Look up/down* (D645).
+
 ### Settings and diagnostics
+
+- **Mission timer** (D606, #144): an optional always-visible timer, off by
+  default (F10).
+- F10 dropdowns stay inside the settings box instead of covering the help
+  text (D646).
+- Windows: per-monitor DPI awareness, so fullscreen on a scaled 4K display is
+  native resolution (D626); exclusive fullscreen uses the desktop mode (D639).
 
 - The old front-end **Velocity** pointer mode is removed; the retired ini keys
   are ignored quietly (D574).
@@ -120,6 +149,17 @@ the folder:
 xattr -dr com.apple.quarantine goldeneye-pc-port-<version>-macos-arm64
 ```
 
+Or download it in Terminal, which skips the block entirely (`curl` does not
+mark the file for Gatekeeper):
+
+```
+curl -L https://github.com/jkdansereau/goldeneye-pc-port/releases/download/v<version>/goldeneye-pc-port-<version>-macos-arm64.tar.gz | tar xz
+```
+
+Without Terminal: after the first launch is blocked, open System Settings →
+Privacy & Security and click **Open Anyway** next to the `ge007.aarch64`
+message.
+
 I have only run it on one M3 Mac, so please report what Mac and macOS you
 tried and what happened.
 
@@ -139,6 +179,7 @@ Full steps, controls and troubleshooting are in the bundled `README.md`.
 | Jungle can feel slightly less smooth at 90 fps than other levels | Feel | Frame cap 60 |
 | Cradle's turret explosions may draw wrongly | Cosmetic; reported, not yet investigated | None |
 | After alt-tabbing away, the picture can look hazy until it settles; fast repeated alt-tab is wonkier and takes longer | Cosmetic, Windows | It recovers on its own; alt-tab again or give it a couple of seconds |
+| macOS: the end credits may crash | Ending only, macOS only | Your progress is already saved by then |
 | macOS (Apple Silicon) is experimental, tested on one Mac, and not notarized | Platform | Run `xattr -dr com.apple.quarantine <folder>` before the first launch; reports welcome |
 | PAL and JP ROMs aren't supported in release packages | NTSC-U only | Use an NTSC-U ROM. Both regions convert, build and boot from source; packaging is still open |
 | Changing aspect ratio inside a level can briefly glitch the gun/hand model, rarely | Cosmetic, one-off | Change the ratio from the front-end PC Options, or accept it |
@@ -164,9 +205,19 @@ workarounds, is the
   cleared (D579 follow-up).
 - **#151** the first launch opens on the primary monitor (D581).
 - **#152** Linux end-credits crash: a garbage text pointer is rejected (D582).
-- **#153** hat-spawn crash: the object record type was read from the wrong byte
-  on a little-endian machine (D580).
+- **#153, #156** hat-spawn crash: the object record type and the end-of-list
+  marker were read from the wrong byte on a little-endian machine, so the search
+  could run past the end of the list (D580).
 - **#108** SFX / text-bank pointer guards (D573).
+- **#145 / #149** Original control style as an N64 controller (D643); Invert
+  look in the original styles (D605, D645).
+- **#144** mission timer (D606).
+- **#146** file-select crest on a dark square: 4-bit IA textures now decode as
+  the N64 does (D644).
+- **Exit crash (BSOD 0x119) on some Windows GPUs:** the GL context and window
+  are released before the process exits (D632).
+- Windows DPI awareness (D626), exclusive fullscreen mode (D639), F10 dropdown
+  placement (D646).
 - Velocity removal, update-check fix, `ge007.log`, HUD-150 sliders, preset
   scope (D574-D577, D440).
 - **macOS arm64:** one address-model header, the 64-bit pointer fixes and a
@@ -174,10 +225,12 @@ workarounds, is the
 
 ## Verification
 
-I did not re-run the three-platform reference-frame gate for this release; the
-last full run was for v0.5.0. For v0.6.0 I checked the frame-rate path and the
-fixes above by playing on Windows and the Steam Deck, and the macOS build with
-a 21-level sweep and live sessions.
+Windows: the 21-level reference-frame sweep passes (Streets sits at the edge of
+its tolerance and flips run to run with or without this release's changes).
+Steam Deck and macOS: all 21 levels load, play and quit without a crash (their
+reference frames are not yet comparable, so no pixel check). The fixes above
+were also checked by playing on Windows, with the original controls compared
+against the issue reports rather than an N64 pad.
 
 ## Thanks
 

@@ -10,6 +10,9 @@ repository:
   * the port layer            port/
   * the PC build system        CMakeLists.txt, cmake/, build-pc.sh
   * PC-port tooling            tools_pc/
+  * macOS packaging            scripts/package-macos.sh, scripts/gen_macho_syms.py,
+                               scripts/strip_weak_pragmas.py
+  * agent-development tooling  pi/ (not part of the game build)
   * documentation              docs/, README.md
 
 Third-party code vendored into the port layer keeps its own license:
@@ -17,6 +20,17 @@ Third-party code vendored into the port layer keeps its own license:
   * port/fast3d/  - software RSP adapted from the Perfect Dark port /
     libultraship / sm64-port lineage; see port/fast3d/LICENSE.txt.
   * port/fast3d/glad/ - generated OpenGL loader (glad), public domain / MIT.
+
+Runtime libraries bundled in the downloads (not in this repository) keep
+their own licenses; each license text ships in the download's licenses/ folder:
+
+  * SDL2 (all platforms) and SDL3 (macOS, loaded by sdl2-compat) - zlib license.
+  * zlib - zlib license.
+  * Windows: the MinGW-w64 runtime (libwinpthread, libgcc, libstdc++).
+  * macOS: the GCC runtime (libgcc_s, libstdc++) - GPL-3.0 with the GCC
+    Runtime Library Exception 3.1. The GPL-3.0 text the macOS package ships
+    is tools_pc/dist/GPL-3.0.txt (the Homebrew gcc keg carries only the
+    exception text and GPL-2.0).
 
 Vendored build tooling keeps its own license (none of it is compiled or linked
 into the PC port; it belongs to the N64 decompilation build):

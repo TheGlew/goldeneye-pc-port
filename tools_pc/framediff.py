@@ -48,7 +48,8 @@ USAGE
 Frames are matched by filename stem (frame_000200). .ppm (P6) and .png
 are both accepted on either side. Exit status: 0 = all frames within
 threshold, 1 = at least one frame/region over threshold, 2 = usage / IO
-error (e.g. a golden frame with no candidate).
+error (e.g. a golden frame with no candidate), 3 = a candidate frame's size
+differs from its golden (never a pass: the frames were not compared).
 
 Regenerate the golden set (after a deliberate visual change):
   GE_PCDUMP="640-1120:240" ./build-pc/ge007.x86_64.exe -level_09
@@ -419,7 +420,7 @@ def main(argv):
             print("FAIL %s: size %dx%d vs golden %dx%d"
                   % (stem, cw, ch, gw, gh))
             results.append({"frame": stem, "status": "size"})
-            worst = 2
+            worst = max(worst, 3)
             continue
         mask = build_mask_bitmap(gw, gh, masks)
 
@@ -470,6 +471,7 @@ def main(argv):
     print("\n%d/%d frames within threshold%s"
           % (len(results) - n_fail, len(results),
              "" if worst == 0 else "  --  REGRESSION" if worst == 1
+             else "  --  SIZE MISMATCH" if worst == 3
              else "  --  ERROR"))
     return worst
 

@@ -6,7 +6,7 @@
 ![license](https://img.shields.io/badge/license-MIT-ffb454)
 
 **GoldenEye 007 (Nintendo 64, 1997) as a native PC game for Windows, Linux
-and Steam Deck.** Native widescreen, 60 fps or higher (90/120/144 on fast
+and Steam Deck.** Native widescreen, 60 fps or higher (up to 240 on fast
 displays), 2–4 player split-screen, mouse and keyboard or a modern controller, rebindable controls
 and an in-game options menu. No
 emulator, and not a binary recompilation: the game's own
@@ -17,7 +17,7 @@ for your PC and running from your own ROM.
 **[Download the latest release](https://github.com/jkdansereau/goldeneye-pc-port/releases)**,
 then follow the [Quick start](#quick-start).
 
-[Quick start](#quick-start) · [Controls](#controls) · [Features](#features) · [Settings and files](#settings-and-files) · [Troubleshooting](#troubleshooting) · [Roadmap](#roadmap) · [Building](#building-from-source) · [Legal](#legal)
+[Quick start](#quick-start) · [Why this port](#why-play-this-port) · [Controls](#controls) · [Features](#features) · [Settings and files](#settings-and-files) · [Troubleshooting](#troubleshooting) · [Roadmap](#roadmap) · [Building](#building-from-source) · [Legal](#legal)
 
 > [!IMPORTANT]
 > **You must supply your own GoldenEye 007 ROM.** This repository and its
@@ -49,10 +49,10 @@ project is as much a study of that process as it is a port. See
 
 ## News
 
-- **RELEASE-DATE** — **v0.6.0** ([release notes](https://github.com/jkdansereau/goldeneye-pc-port/releases/tag/v0.6.0)):
-  - **Frame rates above 60.** `Video.FpsCap` now offers 90, 120 and 144, and
-    an **Auto** setting (the new default on fresh installs) that matches your
-    display's refresh rate. Frames between game ticks are blended from the
+- **2026-10-13** — **v0.6.0** ([release notes](https://github.com/jkdansereau/goldeneye-pc-port/releases/tag/v0.6.0)):
+  - **Frame rates above 60.** `Video.FpsCap` now offers 90, 120, 144, 165 and
+    240, and an **Auto** setting (the new default on fresh installs) that
+    matches your display's refresh rate, up to 240. Frames between game ticks are blended from the
     previous and current frame; the game still simulates at its original
     rate. It costs one game tick of extra latency, does nothing on a 60 Hz
     display, and the *Original N64* preset caps at 60. This is a rework of
@@ -66,9 +66,14 @@ project is as much a study of that process as it is a port. See
     for the one-line unblock. Test reports are very welcome.
   - **Fixes:** geometry vanishing when you press against a wall (#150),
     the first launch opening on the wrong monitor (#151), a Linux crash in the
-    end credits (#152), a crash when a guard spawns with a hat (#153), a
+    end credits (#152), a crash when a guard spawns with a hat (#153, #156), a
     sound/text pointer check that rejected valid pointers (#108), a Cradle
     catwalk shadow flicker, and stale watch pixels in native widescreen.
+  - **Original controls (#145, #149):** with *Control style* set to Original,
+    a gamepad now behaves as an N64 controller (South = A, West = B, the game
+    decides what each does), and *Invert look* works in every original style.
+    Also an optional mission timer (#144), the file-select crest no longer
+    drawing on a dark square (#146), and a Windows exit-crash fix.
   - **Smaller changes:** the legacy front-end Velocity pointer mode is gone,
     the Linux/macOS update check no longer fails on a large response, every
     run is also logged to `ge007.log` next to the ini, and F10 slider labels
@@ -201,6 +206,22 @@ one pad pick a 1.x style. Saves made with earlier builds may hold 1.2 (the port 
 forced style back into the save), so when you switch to the Original control style, pick
 your style on the watch once.
 
+In the Original control style the pad is a strict virtual N64 controller in
+every context (stage, menus, watch, tank): each press sends the native N64
+button and the game decides what it means (so *B* uses a door or reloads, as
+on the console). Default layout, remappable per player in the ini
+(`Input.N64Pad.<Button>`, `Input.N64Pad2..4` for players 2-4; up to two pad
+buttons each) and with `Input.N64StickFeel` (1 = linear +/-80 stick with a
+small dead centre, 0 = the Ext deadzone):
+
+| Pad | N64 | Pad | N64 |
+|---|---|---|---|
+| South (A) | A | Right stick | C buttons |
+| West (X) | B | Left stick | Analog stick |
+| Right trigger | Z | D-pad | D-pad |
+| Left trigger / RB | R | Start | Start |
+| LB | L | Back | PC options overlay |
+
 **Rebinding:** *Key Bindings* in the options overlay rebinds the
 keyboard and mouse (one list: movement, then actions). Controller buttons are
 rebindable per controller under *Controller* (pick a player first): set *Layout preset* to
@@ -225,6 +246,47 @@ left/right adjusts the selected value, **A** opens a page or toggles a row,
 again) closes. With a keyboard, use `F10`, the arrow keys, Enter and
 Backspace.
 
+## Why play this port
+
+The questions people ask most about playing GoldenEye today, and how this
+port answers them:
+
+- **Real 60 fps, not a speed hack.** The game's logic counts time in 60 Hz
+  ticks. On the N64 it only drew a frame every 2–3 ticks (20–30 fps); here it
+  draws every tick, so you get 60 fps with the game, physics and AI running
+  at the N64's own speed. There is no CPU overclock or frame-skip patch involved,
+  and the few spots in the game that behaved differently at one tick per frame
+  are fixed to match the N64. Above 60 (90 to 240, or Auto), extra
+  frames are blended between ticks for smoothness, at the cost of one tick of
+  latency.
+- **Aiming that doesn't feel floaty.** *Aim style* picks the behavior.
+  **Centered** pins the crosshair in the middle, and the mouse or the right
+  stick turns the camera directly, like a modern shooter. **Original** keeps
+  the N64's crosshair that moves a little before the camera follows. The stick
+  has separate horizontal and vertical sensitivity, separate deadzones for each
+  stick, look smoothing and a trigger threshold. The mouse has raw input, an aim
+  curve, smoothing, and separate turn and aim-mode sensitivities.
+- **Dual analog and mouse and keyboard, built in.** No emulator remapping. The
+  right stick looks, the triggers fire and aim, and every button is rebindable,
+  for the keyboard, the mouse and each controller. Rare's Xbox control styles are
+  presets. If you want the N64 exactly, the **Original** control style turns the
+  pad into a strict virtual N64 controller.
+- **The whole game.** All 20 solo missions and the credits, with every
+  difficulty, 007 mode and the cheats, plus 2–4 player split-screen on every
+  multiplayer map. Your emulator saves (1964, Project64) load directly.
+- **Faithful by construction.** It is the game's own reconstructed source
+  compiled natively, not an emulator and not a remake, so levels, guards and
+  weapons behave the way the N64 cartridge does. The **Original N64** display
+  preset switches every visual improvement off at once.
+- **Modern display options:** native widescreen at any aspect ratio, high
+  resolutions, MSAA, adjustable FOV and draw distance, and HUD scaling.
+- **Windows, Linux, Steam Deck and (experimental) macOS** from one download
+  page, with an in-game options menu on F10 or the pad's Select button.
+
+What it doesn't do (yet): bots, online play, new or enlarged multiplayer maps,
+mod support, and PAL/JP ROMs are not part of this release. See the
+[Roadmap](#roadmap).
+
 ## Features
 
 - **2–4 player split-screen multiplayer** on every MP map, with the N64's own
@@ -238,8 +300,8 @@ Backspace.
   and *Aspect ratio → Original* shows the exact 4:3 frame.
 - **A steady 60 fps**, with VSync and a frame cap (30 or 60), including on
   low-end GPUs.
-- **Frame rates above 60:** 90, 120 or 144 fps, or **Auto** to match your
-  display. Extra frames are blended between game ticks (the game still runs at
+- **Frame rates above 60:** 90, 120, 144, 165 or 240 fps, or **Auto** to match
+  your display (up to 240). Extra frames are blended between game ticks (the game still runs at
   its original rate), at the cost of one tick of latency. It has no effect on
   a 60 Hz display, and the *Original N64* preset keeps 60. See
   [framerate and pacing](docs/framerate-and-pacing.md).
@@ -355,7 +417,7 @@ MasterVolume = 100
 ```
 
 `Fullscreen` 1 is borderless fullscreen; `FpsCap` -1 is Auto (match the display,
-up to 144), 0 is uncapped, otherwise a fps cap (30, 60, or 90/120/144 for frame
+up to 240), 0 is uncapped, otherwise a fps cap (30, 60, or 90 to 240 for frame
 interpolation on a faster display; an existing ini keeps its value); `TextureFilter` is 0 nearest,
 1 bilinear, 2 the N64 3-point filter, 3 trilinear; `FovScale` and `DrawDistance` are
 percentages of the original (the options overlay shows the field of view in
@@ -555,6 +617,17 @@ it comes from a download. Unpack it, then run `xattr -dr com.apple.quarantine <f
 xattr -dr com.apple.quarantine goldeneye-pc-port-<version>-macos-arm64
 ```
 
+**Or skip the quarantine step** by downloading in Terminal instead of a browser
+(`curl` does not mark the file, so Gatekeeper never checks it):
+
+```sh
+curl -L https://github.com/jkdansereau/goldeneye-pc-port/releases/download/v<version>/goldeneye-pc-port-<version>-macos-arm64.tar.gz | tar xz
+```
+
+**Without Terminal:** after macOS blocks the first launch, open System Settings →
+Privacy & Security, scroll down to the message about `ge007.aarch64` and click
+**Open Anyway** (macOS 15 removed the old right-click → Open bypass).
+
 Then set up `data/` with your ROM as in the package README and run
 `./ge007.aarch64` from that folder in Terminal. If you launch it first, the process
 stalls before the window appears (it never reached `main` in my test; that is
@@ -726,7 +799,7 @@ models used, and the harnesses that drove them:
 This is a non-commercial fan preservation/research project, in the same
 category as the many other N64 decompilation and native-port repositories on
 GitHub. It is **not affiliated with, endorsed by, or sponsored by** Nintendo,
-Rare, Microsoft, Valve, MGM, Danjaq, EON Productions, or any rights holder in
+Rare, Microsoft, Valve, Apple, MGM, Danjaq, EON Productions, or any rights holder in
 GoldenEye or James Bond. "GoldenEye 007", "007", "James Bond" and related
 marks belong to their respective owners; they are used here only to say which
 game this port runs. No official logos, box art, or marketing assets are used.
@@ -734,8 +807,10 @@ game this port runs. No official logos, box art, or marketing assets are used.
 ### What the download contains
 
 - **The engine:** the `port/` layer plus the compiled decompilation.
-- **Runtime libraries** under permissive licenses (SDL2, zlib, the MinGW
-  runtime); their licenses travel in the download.
+- **Runtime libraries:** SDL2 (and SDL3 on macOS) and zlib under the zlib
+  license, the MinGW runtime on Windows, and the GCC C++ runtime on macOS
+  (GPL-3.0 with the GCC Runtime Library Exception); their licenses travel in
+  the download.
 - **The one-time asset tool**, which reads your ROM on your machine.
 
 It contains **no ROM and no game assets of any kind**. Any build, yours or a
@@ -776,4 +851,4 @@ is covered by [`NOTICE`](NOTICE), not by that license.
 
 ---
 
-*Last updated 2026-10-10 — v0.6.0 · <a href="https://github.com/jkdansereau/goldeneye-pc-port">GitHub</a> · <a href="https://github.com/jkdansereau/goldeneye-pc-port/releases">Releases</a>*
+*Last updated 2026-10-13 — v0.6.0 · <a href="https://github.com/jkdansereau/goldeneye-pc-port">GitHub</a> · <a href="https://github.com/jkdansereau/goldeneye-pc-port/releases">Releases</a>*

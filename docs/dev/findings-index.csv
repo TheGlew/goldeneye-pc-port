@@ -325,6 +325,8 @@ D579,FIXED,Issue #150: hugging a wall makes geometry vanish (N64 native widescre
 D583,FIXED,120 fps + VSync on G-Sync/VRR:,"FIXED on PC 2026-10-09 (G-Sync OLED, maintainer by eye); Deck 90 good on most levels (per-level pass 2026-10-10); open:"
 D584,FIXED,Cradle catwalk shadow flicker at every frame rate (regression from D579).,FIXED 2026-10-10 (maintainer Deck:
 D614,OPEN,Deck Bunker fight texture-cache thrash:,"OPEN: measured, fix not shipped (2026-10-10)"
+D605,FIXED,"Issue #145 (v0.6.0): F10 ""Invert look"" never reached the look stick in the HONEY role (game styles 1.1/1.3 -- left stick looks, right stick is the digital move…",FIXED 2026-10-09 (v0.6.0 line; port-only:
+D606,FIXED,Issue #144 (v0.6.0 triage):,"FIXED 2026-10-09 (v0.6.0 line; port-only in port/src/optionsoverlay.c, src/game zero-diff; off by default so goldens stay byte-identical; smoke-verified:"
 D407,CLOSED,Tanks cannot be boarded/exited on PC —,CLOSED (2026-09-28 bookkeeping:
 D408,FIXED,Game.SkipIntro skips the post-mission failure dossier:,FIXED 2026-09-30 (SkipIntro hook gated to first boot; live dossier check owed).
 D415,FIXED,"Shooting a light fixture does not ""kill"" its flickering light (Bunker, Caverns):",FIXED (2026-09-29 bookkeeping:
@@ -439,6 +441,27 @@ D534,FIXED,Pre-release review of the 2026-10-05 local batch —,FIXED 2026-10-05
 D540,FIXED,Fog rework (Deck playtest):,FIXED 2026-10-05 (port:
 D450,FIXED,"Unplugging and replugging a controller was not picked up (user, GameSir-G7 Pro; 2026-09-29).","FIXED — port-only: the render thread's gfx_sdl_handle_events drains the same SDL queue as video.c's host pump but had no case for SDL_CONTROLLERDEVICEADDED/REMOVED, so it usually swallowed them and i…"
 D436,FIXED,"Persistent (hipfire) crosshair, opt-in:",FIXED (shipped 2026-09-29; rule-2 sign-off:
+D617,OPEN,"The HD pack's ge007.tdb is the emulator's full per-draw key list, not the pack's PNG list —",OPEN — plan written (docs/dev/TEXPACK-RICE-DRAW-PLAN.md); whole-texture recipe confirmed correct by 9 tdb hits with exact ;WxH agreement; PNG-filename and brute-force param searches are dead ends
+D618,?,"The community HD pack's non-CI keys are per-draw rects partly unreachable from N64 tile state (440x1 strips), and a rect key cannot land in the whole-texture p…",STOPPED 2026-10-06 — tdb ;WxH are per-draw rects (440x1 ×301 over tmem's 128-byte pitch = recompile-side); ~100 byte-domain variants score 0 hits; content-join does not discriminate; rect-keyed repla…
+D619,?,"The community HD pack's remaining 1790 PNGs are blocked by four independent causes (recompile-side rect keys, wrong hash domain, rect-vs-whole-texture format,…",WRITTEN UP 2026-10-06 —
+D620,OPEN,The HD pack's non-CI keys hash the pack's own re-encoded content —,MEASURED 2026-10-07 —
+D621,PARTIAL,The PD dabs-mod texture-pack notes mine:,PLAN LANDED 2026-10-07 —
+D622,?,B0 sprite-bank confirmation —,"PASS 2026-10-07 — two human-driven GE_TEXNUMDUMP+GE_TEXDUMP runs (front end 377 unique texnums / 521 dumps, -level_09 combat 321 / 316; evidence scratch/b0/):"
+D623,OPEN,Phase B1–B3 measured:,MEASURED 2026-10-07 —
+D624,OPEN,B4 content scorer built + tuned:,"BUILT 2026-10-07 — 5-stage pipeline (geometric prefilter → content rank → GT-tuned auto-accept → vision judge → human queue) per the 2026-10-07 decision (commits 512e6d57, 95d38637)."
+D625,?,"texpack A5: downscale-to-GL-max instead of the D615 vanilla fallback, plus first-use decode-stall metering —","BUILT 2026-10-10, not yet A/B-verified —"
+D626,FIXED,Windows DPI awareness was never declared:,FIXED 2026-10-10 (gfx_sdl2.cpp:
+D627,FIXED,DexDrive / GameFAQs .n64 saves import directly:,"FIXED 2026-10-10 (eepimport.c + eep_convert.py dexdrive-to-pc); byte-identical to the reference extraction, malformed inputs rejected untouched; by-eye mission select owed"
+D628,RESOLVED,"The exact-CRC CI half of the GoldenEye-007-HD join is sound (256 texnums, independently re-verified), but its structural half was scored against GE_TEXDUMP cap…","CI HALF ACCEPTED 2026-10-10 (256/256 (crc,fmt,siz) agreement with the rice census, 256 distinct texnums, palette-variant collision resolved by ROM palcrc, builder resolves all 256 sources); structura…"
+D632,OPEN,Exit BSOD 0x119 recurred (2026-10-10) despite D344; the first minidump shows it fires in the kernel's process-exit GPU cleanup (DXGPROCESS::Destroy -> DXGCONTE…,FIX BUILT 2026-10-10 (fix/d632-exit-teardown):
+D636,FIXED,Non-CI pack textures ARE fingerprint-keyed:,FIXED 2026-10-10 (feat/texpack-fp):
+D637,?,Fingerprint fallback in the loader:,BUILT 2026-10-10 (feat/texpack-fp); C CRC == Python on 80 ROM glyphs; not run-verified (game runs on hold)
+D638,FIXED,HD-pack ammo icon cut off:,FIXED 2026-10-10 (chore/v070-agentic-batch):
+D639,OPEN,Exclusive fullscreen picked the wrong resolution:,FIX BUILT 2026-10-10 (chore/v070-agentic-batch):
+D643,FIXED,Issues #145 (b)(c) / #149:,FIXED 2026-10-12 (port-only; GE_PADMAPTEST PASS; maintainer pad pass vs the #145/#149 reports; 1:1 N64-pad stick check owed when an adapter is available)
+D644,FIXED,File-select royal crest drew on an opaque dark square (#146):,"FIXED 2026-10-12 (import_texture_ia4; 1964-confirmed symptom, maintainer-verified; Win sweep unchanged)"
+D645,FIXED,"Original 1.1: F10 ""Invert look"" did not invert vertical look (#145 a):",FIXED 2026-10-12 (F10 row and watch row synced in Original; maintainer-verified)
+D646,FIXED,"F10 dropdown popup drew over the hint/tooltip panel (popup bounded by the screen edge, not the settings box) —",FIXED 2026-10-12 (ddGeom bounded to the box; maintainer-verified)
 D607,OPEN,Address model unified into one header:,DONE 2026-10-07 (macos branch; Windows identity gate:
 D608,FIXED,D34 ANIM_DATA_x re-basing guard in assets/animationtable_data.h was __x86_64__-only:,"FIXED 2026-10-07 (macos branch; mechanical guard widening, arm64 link clean)"
 D609,FIXED,macOS arm64 SIGKILL at exec:,"FIXED 2026-10-07 (macos branch; probe-confirmed; arm64 keeps the 4 GiB pagezero, floor 11.0)"

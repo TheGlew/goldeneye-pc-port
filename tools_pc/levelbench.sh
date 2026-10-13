@@ -13,6 +13,10 @@
 #     --record FILE   human plays (no script); pad input saved to FILE
 #     --replay FILE   replay a --record file instead of a script
 #                     (both pin GE_RSEED so guards make the same choices)
+#                     (also writes FILE.meta: level, secs, seed, binary_md5,
+#                     recorded, script=none -- consumed by demobatch.sh)
+#     --dump SPEC     pass GE_PCDUMP=SPEC ("lo-hi[:step]"); the ./ppm frames
+#                     are moved to <out>/ppm/ after the run
 #     --gamescope     wrap in nested `gamescope -r 90 -w 1280 -h 800 -f`
 #                     (Deck desktop mode: approximates Game Mode pacing)
 #
@@ -22,7 +26,7 @@
 # play), then 1.2 s Z holds every 4 s, so guards hear shots and start their
 # patterns. Z is fire in every control style and harmless in cutscenes.
 set -u
-SECS=45; SCRIPT=fight; REC=; REP=; EXE=; DIR=$PWD; OUT=; GSCOPE=0
+SECS=45; SCRIPT=fight; REC=; REP=; EXE=; DIR=$PWD; OUT=; GSCOPE=0; DUMP=
 while [ $# -gt 0 ]; do
     case $1 in
         --secs) SECS=$2; shift 2;;
@@ -32,8 +36,9 @@ while [ $# -gt 0 ]; do
         --out) OUT=$2; shift 2;;
         --record) REC=$2; SCRIPT=none; shift 2;;
         --replay) REP=$2; SCRIPT=none; shift 2;;
+        --dump) DUMP=$2; shift 2;;
         --gamescope) GSCOPE=1; shift;;
-        -h|--help) sed -n 2,22p "$0"; exit 0;;
+        -h|--help) sed -n 2,26p "$0"; exit 0;;
         *) break;;
     esac
 done
@@ -93,6 +98,20 @@ IENV=(GE_INPUTSCRIPT_MS=1 "GE_INPUTSCRIPT=$INPUT")
 [ "$SCRIPT" = none ] && IENV=("GE_RSEED=${GE_RSEED:-0123456789abcdef}")
 [ -n "$REC" ] && IENV+=("GE_INPUTRECORD=$REC")
 [ -n "$REP" ] && IENV+=("GE_INPUTREPLAY=$REP")
+if [ -n "$REC" ]; then
+    {
+        echo "level=$LVL"
+        echo "secs=$SECS"
+        echo "seed=${GE_RSEED:-0123456789abcdef}"
+        echo "binary_md5=$(md5sum "$EXE" | cut -c1-8)"
+        echo "recorded=$(date +%Y-%m-%dT%H:%M:%S)"
+        echo "script=none"
+    } > "$REC.meta"
+fi
+if [ -n "$DUMP" ]; then
+    IENV+=("GE_PCDUMP=$DUMP")
+    mkdir -p ppm; rm -f ppm/frame_*.ppm
+fi
 echo "input env: ${IENV[*]}" >> "$OUT/run.txt"
 env GE_QUITFRAME=$((SECS * 60)) "${IENV[@]}" "$@" \
     timeout $((SECS + 90)) "${CMD[@]}" > "$OUT/stdout.txt" 2>&1
@@ -105,6 +124,10 @@ LOG=$(find . -maxdepth 3 -name ge007.log -newer "$STAMP" 2>/dev/null | head -1)
 [ -n "$LOG" ] && cp "$LOG" "$OUT/ge007.log"
 for f in ge007.crash.log; do [ -f "$f" ] && [ "$f" -nt "$STAMP" ] && cp "$f" "$OUT/"; done
 rm -f "$STAMP"
+if [ -n "$DUMP" ]; then
+    mkdir -p "$OUT/ppm"
+    for f in ppm/frame_*.ppm; do [ -e "$f" ] && mv "$f" "$OUT/ppm/"; done
+fi
 
 L="$OUT/ge007.log"; [ -f "$L" ] || L="$OUT/stdout.txt"
 {
