@@ -75,7 +75,7 @@ Without Terminal: after macOS blocks the first launch, open System Settings →
 Privacy & Security and click **Open Anyway** next to the `ge007.aarch64`
 message.
 
-The [user guide](https://github.com/jkdansereau/goldeneye-pc-port/blob/release/v0.6.0/docs/user-guide.md)
+The [user guide](https://github.com/jkdansereau/goldeneye-pc-port/blob/v0.6.0/docs/user-guide.md)
 covers controls, settings, emulator saves and troubleshooting.
 
 ## What's new
@@ -167,4 +167,4 @@ Built on the [GoldenEye 007 decompilation](https://github.com/n64decomp/007)
 and modelled on the [Perfect Dark PC port](https://github.com/fgsfdsfgs/perfect_dark).
 A non-commercial fan project, not affiliated with any rights holder. Developed
 with AI coding agents directed by one maintainer; see
-[About the project](https://github.com/jkdansereau/goldeneye-pc-port/blob/release/v0.6.0/docs/about.md#how-it-was-made).
+[About the project](https://github.com/jkdansereau/goldeneye-pc-port/blob/v0.6.0/docs/about.md#how-it-was-made).
