@@ -57,8 +57,8 @@ Rare "Indy" engine family, one hardware generation apart.
 
 <div class="cblock" markdown="1">
 
-- **2–4 player split-screen multiplayer** on every multiplayer map, each
-  player with their own pad, controls and aim settings.
+- **Split-screen multiplayer for up to 4 players**, each player with their
+  own pad, controls and aim settings.
 - **One options menu** for every setting, laid out like the Perfect Dark
   port's, with the game's own crosshair as the mouse pointer. Pick the game's
   own N64 control styles (1.1–2.4) per player, or the Xbox release's presets

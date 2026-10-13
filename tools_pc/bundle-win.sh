@@ -89,6 +89,18 @@ cp LICENSE "$OUT/licenses/LICENSE-port-MIT.txt"
 for l in SDL2 zlib gcc-libs libwinpthread mingw-w64; do
   [ -d "$MINGW/share/licenses/$l" ] && cp -r "$MINGW/share/licenses/$l" "$OUT/licenses/$l"
 done
+# Some MSYS2 installs (CI's) have no share/licenses dir for gcc-libs or SDL2;
+# the bundled libstdc++/libgcc_s (GPL-3.0 + GCC Runtime Library Exception) and
+# SDL2 (zlib) still carry their texts, from the tree.
+if [ ! -d "$OUT/licenses/gcc-libs" ]; then
+  mkdir -p "$OUT/licenses/gcc-libs"
+  cp tools_pc/dist/GPL-3.0.txt "$OUT/licenses/gcc-libs/COPYING3"
+  cp tools_pc/dist/GCC-RUNTIME-EXCEPTION.txt "$OUT/licenses/gcc-libs/COPYING.RUNTIME"
+fi
+if [ ! -d "$OUT/licenses/SDL2" ]; then
+  mkdir -p "$OUT/licenses/SDL2"
+  cp tools_pc/dist/SDL2-LICENSE.txt "$OUT/licenses/SDL2/LICENSE.txt"
+fi
 
 # --- save converter (D492): emulator .eep <-> port .eep, stdlib-only -----
 mkdir -p "$OUT/tools"

@@ -29,8 +29,11 @@ their own licenses; each license text ships in the download's licenses/ folder:
   * Windows: the MinGW-w64 runtime (libwinpthread, libgcc, libstdc++).
   * macOS: the GCC runtime (libgcc_s, libstdc++) - GPL-3.0 with the GCC
     Runtime Library Exception 3.1. The GPL-3.0 text the macOS package ships
-    is tools_pc/dist/GPL-3.0.txt (the Homebrew gcc keg carries only the
-    exception text and GPL-2.0).
+    is tools_pc/dist/GPL-3.0.txt.
+
+The license texts the downloads carry come from the build environment where
+it provides them, otherwise from tools_pc/dist/ (GPL-3.0.txt,
+GCC-RUNTIME-EXCEPTION.txt, SDL2-LICENSE.txt).
 
 Vendored build tooling keeps its own license (none of it is compiled or linked
 into the PC port; it belongs to the N64 decompilation build):
@@ -61,11 +64,13 @@ It does NOT cover:
     assets -- textures, audio, models, level geometry, in-game text -- are
     NOT included and are extracted from your own ROM at build time.
 
-NO NINTENDO / RARE CONTENT IS DISTRIBUTED HERE
----------------------------------------------
+NO ROM DATA OR ORIGINAL ASSETS ARE DISTRIBUTED HERE
+--------------------------------------------------
 
-This repository contains NO copyrighted ROM data, game assets (textures,
-models, levels, audio, text), or Nintendo/Rare code. Building a playable
+This repository contains NO ROM data and none of the original game assets
+(textures, models, levels, audio, text), and no original Nintendo/Rare
+binaries. The C source under src/ is the decompilation community's
+reconstruction of the game's code (see above). Building a playable
 executable requires a GoldenEye 007 Nintendo 64 ROM that you legally own;
 the build extracts the required assets from that ROM on your own machine.
 

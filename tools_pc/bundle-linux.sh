@@ -95,6 +95,8 @@ cp LICENSE "$OUT/licenses/LICENSE-port-MIT.txt"
 # it exists (Debian/Ubuntu), skip silently elsewhere.
 SDL2_LIC="$(dpkg -L libsdl2-2.0-0 2>/dev/null | grep -m1 '/copyright$' || true)"
 [ -n "$SDL2_LIC" ] && [ -f "$SDL2_LIC" ] && cp "$SDL2_LIC" "$OUT/licenses/SDL2.txt"
+# No dpkg (CI's build image): ship the zlib text from the tree.
+if [ ! -f "$OUT/licenses/SDL2.txt" ]; then cp tools_pc/dist/SDL2-LICENSE.txt "$OUT/licenses/SDL2.txt"; fi
 
 # --- save converter (D492): emulator .eep <-> port .eep, stdlib-only -----
 mkdir -p "$OUT/tools"

@@ -177,12 +177,10 @@ for d in /opt/homebrew/opt/sdl3/LICENSE.txt /opt/homebrew/opt/sdl3/share/license
   if [ -f "$d" ]; then cp "$d" "$OUT/licenses/SDL3.txt"; break; fi
 done
 # The bundled libgcc_s / libstdc++ are GPL-3.0 with the GCC Runtime Library
-# Exception. The Homebrew gcc keg carries COPYING.RUNTIME but only GPL-2.0 as
-# COPYING, so the GPL-3.0 text ships from the tree.
+# Exception. The Homebrew gcc keg carries only GPL-2.0 as COPYING, so both
+# texts ship from the tree.
 cp tools_pc/dist/GPL-3.0.txt "$OUT/licenses/gcc-COPYING3.txt"
-if [ -f /opt/homebrew/opt/gcc/COPYING.RUNTIME ]; then
-  cp /opt/homebrew/opt/gcc/COPYING.RUNTIME "$OUT/licenses/gcc-COPYING.RUNTIME.txt"
-fi
+cp tools_pc/dist/GCC-RUNTIME-EXCEPTION.txt "$OUT/licenses/gcc-COPYING.RUNTIME.txt"
 ls "$OUT/licenses"
 
 # --- save converter + asset-prep tool (same assembly as bundle-linux.sh) ---

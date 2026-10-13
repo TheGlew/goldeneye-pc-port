@@ -16,8 +16,7 @@ and a batch of fixes.
 
 - **Frame rates above 60.** The *Frame rate cap* (`Video.FpsCap`) now offers
   **90, 120, 144, 165 and 240**, and an **Auto** setting that matches your
-  display's refresh rate (up to 240; 165 and 240 have had less testing than
-  90 to 144). Auto is the default on fresh installs; an existing
+  display's refresh rate (up to 240). Auto is the default on fresh installs; an existing
   `ge007.ini` keeps its value. Extra frames are blended between game ticks, so
   the game still simulates at its original rate. It costs one game tick of
   extra latency, does nothing on a 60 Hz display, and the *Original N64*

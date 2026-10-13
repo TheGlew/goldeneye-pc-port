@@ -7,7 +7,7 @@
 
 **GoldenEye 007 (Nintendo 64, 1997) as a native PC game for Windows, Linux
 and Steam Deck.** Native widescreen, 60 fps or higher (up to 240 on fast
-displays), 2–4 player split-screen, mouse and keyboard or a modern controller, rebindable controls
+displays), split-screen for up to 4 players, mouse and keyboard or a modern controller, rebindable controls
 and an in-game options menu. No
 emulator, and not a binary recompilation: the game's own
 reconstructed C, rebuilt from the
@@ -17,11 +17,12 @@ for your PC and running from your own ROM.
 **[Download the latest release](https://github.com/jkdansereau/goldeneye-pc-port/releases)**,
 then follow the [Quick start](#quick-start).
 
-[Quick start](#quick-start) · [Why this port](#why-play-this-port) · [Controls](#controls) · [Features](#features) · [Settings and files](#settings-and-files) · [Troubleshooting](#troubleshooting) · [Roadmap](#roadmap) · [Building](#building-from-source) · [Legal](#legal)
+[Quick start](#quick-start) · [What it offers](#what-this-port-offers) · [Controls](#controls) · [Features](#features) · [Settings and files](#settings-and-files) · [Troubleshooting](#troubleshooting) · [Roadmap](#roadmap) · [Building](#building-from-source) · [Legal](#legal)
 
 > [!IMPORTANT]
 > **You must supply your own GoldenEye 007 ROM.** This repository and its
-> downloads contain no Nintendo code or assets, and no ROM. See
+> downloads contain no ROM data and none of the original assets; the C source
+> is the community's reconstruction of the game's code (see `NOTICE`). See
 > [What's a ROM?](#whats-a-rom) and [Legal](#legal).
 
 **v0.6.0** is the current release. It is a **pre-1.0 release, not a
@@ -85,8 +86,8 @@ project is as much a study of that process as it is a port. See
 - **2026-10-07** — **v0.5.0** ([release notes](https://github.com/jkdansereau/goldeneye-pc-port/releases/tag/v0.5.0)), the first release
   since v0.4.0; it includes the v0.4.1 work, which was never published on
   its own:
-  - **2–4 player split-screen multiplayer** on every multiplayer map, each
-    player with their own pad, controls and aim settings.
+  - **Split-screen multiplayer for up to 4 players**, each player with their
+    own pad, controls and aim settings.
   - **One options menu** for every setting, laid out like the Perfect Dark
     port's, with the game's own crosshair as the mouse pointer. Pick the
     game's own N64 control styles (1.1–2.4) per player, or the Xbox release's
@@ -246,10 +247,7 @@ left/right adjusts the selected value, **A** opens a page or toggles a row,
 again) closes. With a keyboard, use `F10`, the arrow keys, Enter and
 Backspace.
 
-## Why play this port
-
-The questions people ask most about playing GoldenEye today, and how this
-port answers them:
+## What this port offers
 
 - **Real 60 fps, not a speed hack.** The game's logic counts time in 60 Hz
   ticks. On the N64 it only drew a frame every 2–3 ticks (20–30 fps); here it
@@ -272,25 +270,26 @@ port answers them:
   presets. If you want the N64 exactly, the **Original** control style turns the
   pad into a strict virtual N64 controller.
 - **The whole game.** All 20 solo missions and the credits, with every
-  difficulty, 007 mode and the cheats, plus 2–4 player split-screen on every
-  multiplayer map. Your emulator saves (1964, Project64) load directly.
+  difficulty, 007 mode and the cheats, plus split-screen multiplayer for up to
+  4 players. Your emulator saves (1964, Project64) load directly.
 - **Faithful by construction.** It is the game's own reconstructed source
   compiled natively, not an emulator and not a remake, so levels, guards and
-  weapons behave the way the N64 cartridge does. The **Original N64** display
-  preset switches every visual improvement off at once.
+  weapons behave the way the N64 cartridge does. The few changes to game code
+  either keep that N64 behavior where the PC would otherwise differ (frame
+  rate, widescreen, compiler) or are opt-in extras, and the **Original N64**
+  display preset switches every visual improvement off at once.
 - **Modern display options:** native widescreen at any aspect ratio, high
   resolutions, MSAA, adjustable FOV and draw distance, and HUD scaling.
 - **Windows, Linux, Steam Deck and (experimental) macOS** from one download
   page, with an in-game options menu on F10 or the pad's Select button.
 
-What it doesn't do (yet): bots, online play, new or enlarged multiplayer maps,
-mod support, and PAL/JP ROMs are not part of this release. See the
+Bots, online play, mod support and PAL/JP ROMs are on the
 [Roadmap](#roadmap).
 
 ## Features
 
-- **2–4 player split-screen multiplayer** on every MP map, with the N64's own
-  setup flow and per-player HUD.
+- **Split-screen multiplayer for up to 4 players**, with the N64's own setup
+  flow and per-player HUD.
 - **Native widescreen** at any aspect ratio: the world is undistorted, the HUD
   sits at the screen edges, and 4:3 menus are pillarboxed. FOV and draw/LOD
   distance are adjustable, and AI behaviour stays as on the N64 whatever you
@@ -299,7 +298,7 @@ mod support, and PAL/JP ROMs are not part of this release. See the
   between *Modern* and *Original N64* (it reads *Custom* once you edit a setting it covers),
   and *Aspect ratio → Original* shows the exact 4:3 frame.
 - **A steady 60 fps**, with VSync and a frame cap (30 or 60), including on
-  low-end GPUs.
+  the low-end GPUs I test on.
 - **Frame rates above 60:** 90, 120, 144, 165 or 240 fps, or **Auto** to match
   your display (up to 240). Extra frames are blended between game ticks (the game still runs at
   its original rate), at the cost of one tick of latency. It has no effect on
@@ -536,7 +535,9 @@ the 21-level sweep, the ABI finding catalog, SDL input, front end. The two
 handed work back and forth through shared written notes. Up to v0.5.0: 51
 days (16 Aug – 6 Oct), 1,537 commits (the public history squashes the
 v0.4.1–v0.5.0 work into 17), and 419 findings root-caused and logged
-(`D1`–`D564`).
+(`D1`–`D564`). Every change is checked by comparing captured frames from all
+21 solo levels against reference images, crash sweeps on Windows, Linux,
+Steam Deck and macOS, and play-testing; there is no unit-test suite.
 
 The full write-up (timeline, handoff mechanism, effort breakdown, an honest
 "what worked / what didn't"): [`docs/dev/agentic-development.md`](docs/dev/agentic-development.md).
@@ -547,20 +548,17 @@ repository" menu).
 ## How this differs from the other GoldenEye PC projects
 
 This is a native port of the original 1997 Nintendo 64 game, built from its
-actual reconstructed source code, the same lineage as the Perfect Dark PC
-port. The other well-known "GoldenEye on PC" projects are something
-different: they machine-translate the shipped binary of the *unreleased Xbox
-360 XBLA remaster*, a different game on a different codebase with no shared
-code with this one.
+reconstructed source code, the same lineage as the Perfect Dark PC port.
+Other GoldenEye PC projects take a different approach: they statically
+recompile the Xbox 360 XBLA remaster, a separate version of the game with its
+own codebase. The two don't share code, and they target different versions
+of the game.
 
-| | This project | The other well-known "GoldenEye on PC" recompilation projects (and their Steam Deck builds) |
+| | This project | The XBLA recompilation projects |
 |---|---|---|
-| **What it ports** | The original **Nintendo 64** game (1997) | The **Xbox 360 XBLA** HD remaster (built ~2007, never released) |
-| **How** | Decompilation-based source port: human-reconstructed C, compiled for the host; game logic runs as written | Static binary recompilation: the shipped machine code is auto-translated to C; the source is machine-generated |
-| **Lineage** | [GoldenEye 007 decompilation](https://github.com/n64decomp/007) + [Perfect Dark PC port](https://github.com/fgsfdsfgs/perfect_dark) engine family | Xbox 360 "…Recompiled" static-recompilation family |
-| **Renderer** | Software RSP → OpenGL | Hardware (Vulkan) |
-| **Status** | Pre-1.0 releases; full campaign and split-screen playable at 60 fps or higher (see [Status](#status)) | Playable full game |
-| **Why it exists** | To run the *original* N64 game from source, and as a [case study in AI-agent collaboration](#how-it-was-made) on a hard low-level codebase | To get a playable PC release of the remaster |
+| **What it ports** | The original **Nintendo 64** game (1997) | The **Xbox 360 XBLA** remaster |
+| **How** | Decompilation-based source port: reconstructed C, compiled for the host | Static recompilation of the Xbox 360 executable |
+| **Lineage** | [GoldenEye 007 decompilation](https://github.com/n64decomp/007) + [Perfect Dark PC port](https://github.com/fgsfdsfgs/perfect_dark) engine family | The Xbox 360 static-recompilation family |
 
 ---
 
