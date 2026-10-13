@@ -3,8 +3,9 @@
 A native PC port of the original Nintendo 64 *GoldenEye 007*, compiled from the
 [GoldenEye 007 decompilation](https://github.com/n64decomp/007). No emulator.
 
-The full single-player campaign runs at a steady 60 fps, and 2-4 player
-split-screen multiplayer works on every multiplayer map. This is a pre-1.0
+The full single-player campaign runs at a steady 60 fps, or higher on a fast
+display (90 to 240 fps, or Auto to match your monitor: F10 -> *Video*), and
+2-4 player split-screen multiplayer works on every multiplayer map. This is a pre-1.0
 release: the known issues are listed at
 <https://github.com/jkdansereau/goldeneye-pc-port/blob/main/docs/ROADMAP.md#known-issues>.
 Feedback is very welcome.
@@ -28,7 +29,7 @@ version, big-endian `.z64`:
 PAL (EU) and JP ROMs are not supported by this package yet.
 
 To check your file: on Windows, `certutil -hashfile ge007.ntsc-final.z64 SHA1`;
-on Linux, `sha1sum ge007.ntsc-final.z64`.
+on Linux, `sha1sum ge007.ntsc-final.z64`; on macOS, `shasum ge007.ntsc-final.z64`.
 
 @DEPS@
 ## 2. Set up (one time)
