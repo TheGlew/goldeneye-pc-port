@@ -18,7 +18,7 @@ Stages:
    files the port loads at runtime. **Required to run.**
 
 You need a GoldenEye 007 N64 ROM you legally own (`.z64`, big-endian). See the
-[Requirements table in the README](https://github.com/jkdansereau/goldeneye-pc-port#requirements)
+[ROM table in the user guide](user-guide.md#whats-a-rom)
 for accepted versions and hashes.
 
 ---
