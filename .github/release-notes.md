@@ -37,7 +37,7 @@ Each download is ready to run: it carries its runtime libraries, a README, the l
 
 **Steam Deck:** do the steps on the Deck, then add the executable as a non-Steam game.
 
-**macOS:** the app isn't notarized, so run this once in Terminal before the first launch, then start `./ge007.aarch64` from the folder. If the window ever stays black on the first start, close it and start it again.
+**macOS:** the app isn't notarized, so run this once in Terminal before the first launch, then start `./ge007.aarch64` from the folder.
 
 ```
 xattr -dr com.apple.quarantine goldeneye-pc-port-<version>-macos-arm64
@@ -68,6 +68,7 @@ The [user guide](https://github.com/jkdansereau/goldeneye-pc-port/blob/v0.6.0/do
 - Geometry vanishing when you stand against a wall (#150).
 - The first launch opening on the wrong monitor (#151).
 - A crash during the end credits on Linux and macOS (#152).
+- macOS: a black window that never started the game when it was launched while the display was asleep.
 - A crash when a guard spawns wearing a hat (#153, #156).
 - The file-select crest drawing on a dark square (#146).
 - *Invert look* now works in every original control style and stays in sync with the watch's *Look up/down* (#145).
@@ -91,7 +92,6 @@ The [user guide](https://github.com/jkdansereau/goldeneye-pc-port/blob/v0.6.0/do
 | On the Steam Deck at 90 fps, firefights in the centre of Bunker 1 and 2 can drop a few fps, and Jungle can feel slightly less smooth | Set the frame cap to 60 for those levels |
 | Cradle's turret explosions may draw wrongly | None yet |
 | On Windows, the picture can look hazy for a moment after alt-tabbing back | It settles on its own |
-| macOS: the window can stay black on the very first start | Close it and start it again |
 | PAL and JP ROMs aren't supported yet | Use the US (NTSC-U) ROM |
 | Saves from v0.4.0 and earlier can hold fake unlocks from *All unlocked* | Keep a backup of `data/ge007.eep` from before you used it |
 

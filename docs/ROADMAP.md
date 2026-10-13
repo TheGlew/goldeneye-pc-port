@@ -125,7 +125,6 @@ below).
 | Steam Deck at 90 fps: centre firefights in Bunker 1/2 drop several fps; Jungle feels slightly less smooth than other levels | Brief FPS drops | Frame cap 60 for those levels | D583, D585 (present thread, v0.7.0), D614 |
 | Cradle's turret explosions may draw wrongly | Cosmetic | None yet | Deck per-level pass (2026-10-10), not investigated |
 | Windows: the picture can look hazy for a moment after alt-tabbing back; fast repeated alt-tabbing recovers slowly | Cosmetic, temporary | It settles on its own | D578, alt-tab row in §4 (v0.7.0) |
-| macOS: the window can stay black on the very first start of a new download (seen 4 times, passes on re-run) | First launch only | Close it and start it again | v0.6.0 release checks |
 | Saves from v0.4.0 and earlier can hold fake unlocks from `All unlocked` | Save data | Not repaired automatically. Since v0.5.0 the option never writes the save; keep a backup of `data/ge007.eep` from before you used it | D442, D387 |
 | The first frame of a level takes a little longer while its textures upload | Brief FPS-counter dip | None needed | D475, D480 |
 | Far objects almost fully in fog are now hidden as on the N64, except in widescreen, where the wider view can still show a faint distant building edge (e.g. Surface's dish from the start area). 4:3 matches the N64 | Cosmetic | None; higher Draw/LOD distance shows more | D503, §5c |

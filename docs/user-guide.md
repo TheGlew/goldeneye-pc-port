@@ -248,9 +248,7 @@ Then set up `data/` with your ROM as in the package README and run
 `./ge007.aarch64` from that folder in Terminal. If you launch it first, the process
 stalls before the window appears (it never reached `main` in my test; that is
 most likely Gatekeeper, and clearing the flag afterwards did not unstick that
-copy), so re-extract the archive and clear the flag before launching. If the
-window ever stays black on the very first start, close it and start it again;
-later launches start normally. I have run
+copy), so re-extract the archive and clear the flag before launching. I have run
 the package on one M3 Mac only, so test reports (what Mac, what macOS, what
 happened) are very welcome.
 

@@ -35,8 +35,9 @@ The full notes for each version are on the [Releases page](https://github.com/jk
     the first launch opening on the wrong monitor (#151), a crash in the end
     credits on Linux and macOS (#152), a crash when a guard spawns with a hat (#153, #156), a
     sound/text pointer check that rejected valid pointers (#108), a Cradle
-    catwalk shadow flicker, and stale pixels beside the widescreen picture on
-    front-end screens.
+    catwalk shadow flicker, stale pixels beside the widescreen picture on
+    front-end screens, and a black window on macOS when the game was started
+    with the display asleep.
   - **Original controls (#145, #149):** with *Control style* set to Original,
     a gamepad now behaves as an N64 controller (South = A, West = B, the game
     decides what each does), and *Invert look* works in every original style.
