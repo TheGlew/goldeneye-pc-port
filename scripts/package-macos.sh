@@ -150,7 +150,7 @@ echo "    remaining system dependencies:"
 otool -L "$OUT/$EXE_NAME" | tail -n +2 | awk '{print "      " $1}' | grep -v '@executable_path' || true
 
 # --- docs + licenses ---------------------------------------------------
-DEPS_BLOCK=$'## macOS (Apple Silicon, experimental)\n\nThis is an experimental build for Macs with Apple Silicon (M1 or later,\nmacOS @MINOS@ or newer). SDL2 and the C++ runtime are bundled in this folder and\nfound automatically; nothing needs installing, and Homebrew is not required.\n\nThe app is not signed with an Apple Developer ID or notarized, so Gatekeeper\nblocks it when this folder came from a download. After unpacking, open Terminal\nin this folder and run, once:\n\n    xattr -dr com.apple.quarantine .\n\nThen run `./@EXE@` from Terminal.\n'
+DEPS_BLOCK=$'## macOS (Apple Silicon, experimental)\n\nThis is an experimental build for Macs with Apple Silicon (M1 or later,\nmacOS @MINOS@ or newer). SDL2 and the C++ runtime are bundled in this folder and\nfound automatically; nothing needs installing, and Homebrew is not required.\n\nThe app is not signed with an Apple Developer ID or notarized, so Gatekeeper\nblocks it when this folder came from a download. After unpacking, open Terminal\nin this folder and run, once:\n\n    xattr -dr com.apple.quarantine .\n\nThen run `./@EXE@` from Terminal. If the window stays black on the very\nfirst start, close it and start it again.\n'
 MINOS="$(for f in ${SIGN_LIST[@]+"${SIGN_LIST[@]}"} "$OUT/$EXE_NAME"; do otool -l "$f" | awk '/LC_BUILD_VERSION/ {f=1} f && /minos/ {print $2; exit}'; done | sort -V | tail -1)"
 echo "    minimum macOS (highest minos of the bundled Mach-Os): $MINOS"
 DEPS_BLOCK="${DEPS_BLOCK//@EXE@/$EXE_NAME}"

@@ -28,10 +28,10 @@
   set to Original, your pad behaves as an N64 controller, and *Invert look*
   works in every original style.
 - **Fixes:** geometry vanishing up close (#150), the first launch opening on
-  the wrong monitor (#151), the Linux end-credits crash (#152) and a crash when
-  a guard spawns with a hat (#153, #156).
+  the wrong monitor (#151), the end-credits crash on Linux and macOS (#152)
+  and a crash when a guard spawns with a hat (#153, #156).
 - **Also:** an optional mission timer (#144), the file-select crest fixed
-  (#146), and a fix for a Windows exit crash.
+  (#146), and a fix for a Windows blue screen on exit.
 
 ## Downloads
 
@@ -103,12 +103,12 @@ covers controls, settings, emulator saves and troubleshooting.
 
 - Geometry vanishing when you stand against a wall (#150).
 - The first launch opening on the wrong monitor (#151).
-- A Linux crash during the end credits (#152).
+- A crash during the end credits on Linux and macOS (#152).
 - A crash when a guard spawns wearing a hat (#153, #156).
 - The file-select crest drawing on a dark square (#146).
 - *Invert look* now works in every original control style and stays in sync
   with the watch's *Look up/down* (#145).
-- A crash on exit on some Windows GPUs.
+- A Windows blue screen (0x119) when the game exits, seen on an NVIDIA GPU.
 - The Cradle catwalk shadow flicker, and stale pixels beside the widescreen
   picture on front-end screens.
 - Sound and text pointer checks that rejected valid pointers (#108, with
@@ -119,7 +119,7 @@ covers controls, settings, emulator saves and troubleshooting.
 ### Changed
 
 - Windows: per-monitor DPI awareness, so fullscreen on a scaled 4K display is
-  native resolution; exclusive fullscreen uses the desktop mode.
+  native resolution.
 - F10 dropdowns stay inside the settings box.
 - The crosshair look (colour, size, style) is no longer reset by the *Display
   mode* presets.
@@ -132,7 +132,7 @@ covers controls, settings, emulator saves and troubleshooting.
 | On the Steam Deck at 90 fps, firefights in the centre of Bunker 1 and 2 can drop a few fps, and Jungle can feel slightly less smooth | Set the frame cap to 60 for those levels |
 | Cradle's turret explosions may draw wrongly | None yet |
 | On Windows, the picture can look hazy for a moment after alt-tabbing back | It settles on its own |
-| macOS: the end credits may crash | Your progress is already saved by then |
+| macOS: the window can stay black on the very first start | Close it and start it again |
 | PAL and JP ROMs aren't supported yet | Use the US (NTSC-U) ROM |
 | Saves from v0.4.0 and earlier can hold fake unlocks from *All unlocked* | Keep a backup of `data/ge007.eep` from before you used it |
 

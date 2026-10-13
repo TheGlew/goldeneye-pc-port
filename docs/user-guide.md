@@ -38,18 +38,18 @@ controls, every setting and file, and fixes for common problems.
 The keyboard defaults are a GEPD-style layout. The controller layout matches
 Rare's Xbox 1.1 (Jinx) button roles; the other Xbox styles (1.2 Christmas,
 1.3 Frost, 1.4 Elektra, which swap the stick roles) are selectable under
-*Controller* (pick a player first, then *Layout preset*). PlayStation and Nintendo controllers
+*Controller* (pick a player first, then *Layout presets*). PlayStation and Nintendo controllers
 show their own button names in the menus.
 
 **Control style:** *Controller → Control style* (named after the watch's own
-setting, with Perfect Dark's "Ext" for the port's controls) picks how the
-game's controller style (the watch's 1.1–1.4 selector) is treated. **Ext**
+setting, with **Extended**, after Perfect Dark's "Ext", for the port's controls) picks how the
+game's controller style (the watch's 1.1–1.4 selector) is treated. **Extended**
 (the default) keeps the port's feel and fixes the style itself, so the watch's
 selector has no effect. **Original** stops the port from touching the style:
 pick 1.1, 1.2, 1.3 or 1.4 on the watch (or in the multiplayer setup) and it
 behaves as on the N64, and the Controller page then offers the game's own
 styles ("Controller style", 1.1 Honey to 2.4 Goodhead, saved in the Bond file
-like the watch's) instead of the layout presets, which apply in Ext only. Buttons are passed
+like the watch's) instead of the layout presets, which apply in Extended only. Buttons are passed
 through as the N64's buttons, so 1.3 and 1.4 move fire and aim exactly as the
 console does. The 2.x dual-controller styles run faithfully too: the game
 reads their second stick from the next controller slot, which the port does not
@@ -64,7 +64,7 @@ button and the game decides what it means (so *B* uses a door or reloads, as
 on the console). Default layout, remappable per player in the ini
 (`Input.N64Pad.<Button>`, `Input.N64Pad2..4` for players 2-4; up to two pad
 buttons each) and with `Input.N64StickFeel` (1 = linear +/-80 stick with a
-small dead centre, 0 = the Ext deadzone):
+small dead centre, 0 = the Extended deadzone):
 
 | Pad | N64 | Pad | N64 |
 |---|---|---|---|
@@ -76,7 +76,7 @@ small dead centre, 0 = the Ext deadzone):
 
 **Rebinding:** *Key Bindings* in the options overlay rebinds the
 keyboard and mouse (one list: movement, then actions). Controller buttons are
-rebindable per controller under *Controller* (pick a player first): set *Layout preset* to
+rebindable per controller under *Controller* (pick a player first): set *Layout presets* to
 *Custom*, select an action and press a pad button (tap B or Esc to cancel,
 hold B to bind B itself, hold Back to clear; Y clears the selected slot).
 Each action takes up to two buttons. Menus always keep A/X accept and B/Y
@@ -219,7 +219,7 @@ needs the big-endian `.z64` format, and supports the US version today:
 
 To check which file you have, compute its SHA-1: on Windows,
 `certutil -hashfile ge007.ntsc-final.z64 SHA1`; on Linux,
-`sha1sum ge007.ntsc-final.z64`.
+`sha1sum ge007.ntsc-final.z64`; on macOS, `shasum ge007.ntsc-final.z64`.
 
 ## macOS (Apple Silicon, experimental)
 

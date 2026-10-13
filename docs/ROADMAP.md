@@ -121,7 +121,11 @@ below).
 |---|---|---|---|
 | PAL and JP ROMs aren't supported in release packages | NTSC-U only | Use an NTSC-U ROM. Both regions convert, build and boot from source (D258, D487, D488; see `docs/building.md`); packaging (per-region exe, CI matrix, converter region check) is still open | D258, #85, §1 |
 | Changing Aspect ratio in a level (mostly Fill window to Original or a forced ratio) can briefly glitch the gun / hand model, rarely | Cosmetic, one-off | Change the ratio from the front-end PC Options, or accept it | D509 (frame hold fixed the common case; the rare remainder is logged, not investigated) |
-| No macOS or ARM builds | Platform | — | #88, #95, #101, §4 |
+| No Intel macOS or ARM Linux builds (the macOS download is Apple Silicon only, experimental and not notarized) | Platform | — | #88, #95, #101, #154, §4 |
+| Steam Deck at 90 fps: centre firefights in Bunker 1/2 drop several fps; Jungle feels slightly less smooth than other levels | Brief FPS drops | Frame cap 60 for those levels | D583, D585 (present thread, v0.7.0), D614 |
+| Cradle's turret explosions may draw wrongly | Cosmetic | None yet | Deck per-level pass (2026-10-10), not investigated |
+| Windows: the picture can look hazy for a moment after alt-tabbing back; fast repeated alt-tabbing recovers slowly | Cosmetic, temporary | It settles on its own | D578, alt-tab row in §4 (v0.7.0) |
+| macOS: the window can stay black on the very first start of a new download (seen 4 times, passes on re-run) | First launch only | Close it and start it again | v0.6.0 release checks |
 | Saves from v0.4.0 and earlier can hold fake unlocks from `All unlocked` | Save data | Not repaired automatically. Since v0.5.0 the option never writes the save; keep a backup of `data/ge007.eep` from before you used it | D442, D387 |
 | The first frame of a level takes a little longer while its textures upload | Brief FPS-counter dip | None needed | D475, D480 |
 | Far objects almost fully in fog are now hidden as on the N64, except in widescreen, where the wider view can still show a faint distant building edge (e.g. Surface's dish from the start area). 4:3 matches the N64 | Cosmetic | None; higher Draw/LOD distance shows more | D503, §5c |

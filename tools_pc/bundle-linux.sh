@@ -76,7 +76,7 @@ DEPS_BLOCK="${DEPS_BLOCK//@EXE@/$EXE_NAME}"
 # @DECK@: the in-game settings (F10 overlay) controller-mapping guide — only
 # meaningful where Steam input mapping exists (Deck / Linux); Windows bundles
 # substitute it with nothing.
-DECK_BLOCK=$'## Steam Deck: in-game settings (options overlay)\n\nThe options overlay is fully gamepad-driven: it opens with **Select**, the\nD-pad or left stick (up/down) moves between options, **A** steps the selected\noption forward, **B** steps it back, and **Start** (or Select again) closes.\nToggles flip, resolution / MSAA / filtering cycle, sliders step in\nincrements. With a keyboard attached the same overlay is `F10` + arrows/Enter.\n\n'
+DECK_BLOCK=$'## Steam Deck: in-game settings (options overlay)\n\nThe options overlay is fully gamepad-driven: it opens with **Select**, the\nD-pad or left stick moves between options (up/down) and changes the selected\nvalue (left/right), **A** opens a page or steps the selected option, **B** goes\nback one page (and closes from the top), and **Start** (or Select again)\ncloses. With a keyboard attached the same overlay is `F10` + arrows/Enter.\n\n'
 sed -e "s|@VERSION@|${VERSION}|g" \
     -e "s|@PLATFORM@|Linux x86-64|g" \
     -e "s|@EXE@|${EXE_NAME}|g" \

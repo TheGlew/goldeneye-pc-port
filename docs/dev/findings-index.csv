@@ -462,6 +462,7 @@ D643,FIXED,Issues #145 (b)(c) / #149:,FIXED 2026-10-12 (port-only; GE_PADMAPTEST
 D644,FIXED,File-select royal crest drew on an opaque dark square (#146):,"FIXED 2026-10-12 (import_texture_ia4; 1964-confirmed symptom, maintainer-verified; Win sweep unchanged)"
 D645,FIXED,"Original 1.1: F10 ""Invert look"" did not invert vertical look (#145 a):",FIXED 2026-10-12 (F10 row and watch row synced in Original; maintainer-verified)
 D646,FIXED,"F10 dropdown popup drew over the hint/tooltip panel (popup bounded by the screen edge, not the settings box) —",FIXED 2026-10-12 (ddGeom bounded to the box; maintainer-verified)
+D951,OPEN,"v0.6.0 release gate: Windows golden sweep flags are timing noise in the test, not rendering changes —",OPEN (test-side; 2026-10-13)
 D607,OPEN,Address model unified into one header:,DONE 2026-10-07 (macos branch; Windows identity gate:
 D608,FIXED,D34 ANIM_DATA_x re-basing guard in assets/animationtable_data.h was __x86_64__-only:,"FIXED 2026-10-07 (macos branch; mechanical guard widening, arm64 link clean)"
 D609,FIXED,macOS arm64 SIGKILL at exec:,"FIXED 2026-10-07 (macos branch; probe-confirmed; arm64 keeps the 4 GiB pagezero, floor 11.0)"

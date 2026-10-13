@@ -72,8 +72,8 @@ then **Run anyway**.
 | Start | `Enter` / `Tab` | Start |
 | Options overlay | `F10` | Select |
 
-Everything is rebindable in the options overlay: *Input -> Bindings...* for
-keyboard and mouse, *Input -> Controller* for each controller.
+Everything is rebindable in the options overlay: *Key Bindings* for keyboard
+and mouse, *Controller* for each controller (pick a player first).
 
 **Split-screen:** pick Multiplayer from the main menu. With one controller,
 keyboard/mouse is player 1 and the controller is player 2; with two or more
@@ -87,7 +87,7 @@ Everything stays inside this folder; nothing is written anywhere else.
 | File | What it is |
 |---|---|
 | `data/ge007.eep` | Your game progress. Copy it somewhere safe (with the game closed) to back it up. |
-| `tools/eep_convert.py` | Converts a save from an N64 emulator (1964, Project64, ...) to this port, or back: `python tools/eep_convert.py n64-to-pc my-save.eep data/ge007.eep`. A straight copy of an emulator save is wiped on first launch. Needs Python 3; back up `data/ge007.eep` first. |
+| `tools/eep_convert.py` | Takes a save back to an N64 emulator: `python tools/eep_convert.py pc-to-n64 data/ge007.eep back-to-emulator.eep`. Saves from an emulator (1964, Project64, ...) need no tool: with the game closed, copy the `.eep` to `data/ge007.eep`; the first launch converts it and keeps the original as `data/ge007.eep.emulator.bak`. Needs Python 3. |
 | `data/ge007.ini` | Your settings. |
 | `data/pcmodels-*/`, `data/pccg-*/`, `data/ge007.shaders` | Generated files. Safe to delete; they are made again. |
 | `ge007.crash.log` | Written in the folder you launched from if the game crashes. |

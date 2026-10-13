@@ -28,19 +28,21 @@ The full notes for each version are on the [Releases page](https://github.com/jk
   - **macOS on Apple Silicon (experimental).** There is now a `macos-arm64`
     download (or build from source; see [Building](building.md)). Based
     on danturn's #95 (with Julio C. Rocha's earlier Intel groundwork in
-    #88). A campaign sweep and live sessions ran without crashes on one M3
-    Mac; the download is not notarized, so see [macOS](user-guide.md#macos-apple-silicon-experimental)
+    #88). Tested with a 21-level sweep and live sessions on one M3 Mac (the
+    one crash seen, in the end credits, is guarded in this release); the download is not notarized, so see [macOS](user-guide.md#macos-apple-silicon-experimental)
     for the one-line unblock. Test reports are very welcome.
   - **Fixes:** geometry vanishing when you press against a wall (#150),
-    the first launch opening on the wrong monitor (#151), a Linux crash in the
-    end credits (#152), a crash when a guard spawns with a hat (#153, #156), a
+    the first launch opening on the wrong monitor (#151), a crash in the end
+    credits on Linux and macOS (#152), a crash when a guard spawns with a hat (#153, #156), a
     sound/text pointer check that rejected valid pointers (#108), a Cradle
-    catwalk shadow flicker, and stale watch pixels in native widescreen.
+    catwalk shadow flicker, and stale pixels beside the widescreen picture on
+    front-end screens.
   - **Original controls (#145, #149):** with *Control style* set to Original,
     a gamepad now behaves as an N64 controller (South = A, West = B, the game
     decides what each does), and *Invert look* works in every original style.
     Also an optional mission timer (#144), the file-select crest no longer
-    drawing on a dark square (#146), and a Windows exit-crash fix.
+    drawing on a dark square (#146), and a fix for a Windows blue screen on
+    exit.
   - **Smaller changes:** the legacy front-end Velocity pointer mode is gone,
     the Linux/macOS update check no longer fails on a large response, every
     run is also logged to `ge007.log` next to the ini, and F10 slider labels
@@ -91,9 +93,7 @@ The full notes for each version are on the [Releases page](https://github.com/jk
 and the end-of-campaign credits load, render and run crash-free. For v0.6.0
 the release downloads themselves were tested on Windows, Steam Deck (Desktop
 and Game Mode), macOS on Apple Silicon and a 2011 Linux laptop: a fresh
-folder with only the ROM, a first launch, then all 21 solo levels. The
-21-level comparison of captured frames against reference images passes on
-Windows. The new frame-rate path and the listed fixes were also checked by
+folder with only the ROM, a first launch, then all 21 solo levels. The new frame-rate path and the listed fixes were also checked by
 playing on Windows and the Steam Deck. The full campaign was last played end
 to end, at Agent difficulty on Windows, Linux and the Deck, for v0.4.0.
 Split-screen was played live in 2P on every multiplayer map and in 4P on
