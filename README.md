@@ -6,7 +6,7 @@
 
 <p align="center">
   The original Nintendo 64 GoldenEye 007 (1997) as a native game for Windows,
-  Linux, Steam Deck and macOS.
+  Linux, Steam Deck and macOS (Apple Silicon).
 </p>
 
 The GoldenEye 007 PC Port is a native port built from the game's own
@@ -24,7 +24,7 @@ original game assets. You need your own GoldenEye 007 ROM (US version) to play.*
 
 <p align="center">
   <img src="docs/media/goldeneye-gh-preview.gif" width="64%"
-       alt="A short gameplay montage recorded in the port">
+       alt="GoldenEye 007 running natively on PC: the Facility, the Dam sniper rifle and split-screen multiplayer">
   <br><em>Recorded in the port: the Facility intro, the Archives, the Dam
   sniper rifle, Silo, a 2-player match and the Dam ending.</em>
 </p>
@@ -72,7 +72,7 @@ original game assets. You need your own GoldenEye 007 ROM (US version) to play.*
      native 1280x800 fullscreen.
    - **macOS:** run `xattr -dr com.apple.quarantine <folder>` once in
      Terminal, then start `./ge007.aarch64`
-     ([details](docs/user-guide.md#macos-apple-silicon-experimental)).
+     (see the [macOS setup details](docs/user-guide.md#macos-apple-silicon-experimental)).
 4. Play. **F10** (controller: **Select**) opens the options menu.
 
 ## Controls
@@ -129,7 +129,7 @@ styles, rebinding and split-screen.
   either keep that N64 behavior where the PC would otherwise differ (frame
   rate, widescreen, compiler) or are opt-in extras, and the **Original N64**
   display preset switches every visual improvement off at once.
-- **Modern display options:** native widescreen at any aspect ratio, high
+- **Modern display options:** native widescreen and ultrawide at any aspect ratio, high
   resolutions, MSAA, adjustable FOV and draw distance, and HUD scaling.
 - **Windows, Linux, Steam Deck and (experimental) macOS** from one download
   page, with an in-game options menu on F10 or the pad's Select button.
@@ -155,6 +155,15 @@ Yes. Levels, guards and weapons run on the game's own logic at its original
 speed. The **Original N64** display preset and the **Original** control style
 give you the N64 look and controls whenever you want them.
 
+**Does it run on the Steam Deck?**
+Yes. The Linux download is the Deck build: add it as a non-Steam game and it
+starts in native 1280x800 fullscreen at up to 90 fps, with the options menu
+fully usable on the controller.
+
+**Does it support ultrawide and high refresh rates?**
+Yes. Native widescreen works at any aspect ratio, including ultrawide, and the
+frame rate goes up to 240 fps on fast displays (Auto matches your monitor).
+
 **Is there online play, bots or mod support?**
 Not today. LAN play, bots and mod support are on the [roadmap](#roadmap) as
 opt-in extras.
@@ -169,8 +178,8 @@ its source code. See [About the project](docs/about.md#how-this-differs-from-the
 
 **Can I keep my saves?**
 Yes. Your progress is a plain file, `data/ge007.eep`. Saves from 1964 or
-Project64 load directly ([how](docs/user-guide.md#using-an-emulator-save)), and
-updating keeps your save and settings ([how](docs/user-guide.md#updating)).
+Project64 load directly (see [using an emulator save](docs/user-guide.md#using-an-emulator-save)),
+and updating keeps your save and settings (see [updating](docs/user-guide.md#updating)).
 
 **Was AI used to build it?**
 Yes. The port was developed with AI coding agents directed by one maintainer.
