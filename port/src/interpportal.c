@@ -127,11 +127,21 @@ typedef struct {
     int ndrawn;
     s32 d_room[RP_MAXDRAWN];
     bbox2d d_bbox[RP_MAXDRAWN];
+
+    /* D954: the two projections the frame loads, as the game built them
+     * (fixed-point Mtx words, the layout gfx_sp_matrix decodes): projmatrix =
+     * plain perspective (props, chrs, effects: camera in their modelviews),
+     * field_10E0 = perspective * lookat (rooms). Captured even when the portal
+     * replay is off; cam_ok = 0 for split-screen or a missing matrix. */
+    int cam_ok;
+    s32 cam_proj[16];
+    s32 cam_room[16];
 } IpSnap;
 
 static IpSnap s_ring[RP_SLOTS];
 static int s_ringNext;
 static const IpSnap *S;             /* snapshot of the frame being drawn (render thread) */
+static const IpSnap *SC;            /* D954: same frame, camera matrices (valid or not for the replay) */
 static unsigned s_snapSerial;
 
 typedef struct IpSchedTask {        /* mirror of OSScTask (src/sched.h) up to `list` */
@@ -141,6 +151,23 @@ typedef struct IpSchedTask {        /* mirror of OSScTask (src/sched.h) up to `l
     void *framebuffer;
     OSTask list;
 } IpSchedTask;
+
+extern s32 getPlayerCount(void);
+
+/* D954: game thread, with the frame's graphics task. */
+static void ip_snapshot_cam(IpSnap *s, const void *dl)
+{
+    struct player *p = g_CurrentPlayer;
+    _Static_assert(sizeof(Mtx) == sizeof(s->cam_proj), "D954: Mtx must be 16 fixed-point words");
+    s->dl = dl;
+    s->cam_ok = 0;
+    if (p == NULL || p->projmatrix == NULL || p->field_10E0 == NULL || getPlayerCount() != 1) {
+        return;
+    }
+    memcpy(s->cam_proj, p->projmatrix, sizeof(s->cam_proj));
+    memcpy(s->cam_room, p->field_10E0, sizeof(s->cam_room));
+    s->cam_ok = 1;
+}
 
 static void ip_snapshot(IpSnap *s, const void *dl)
 {
@@ -214,7 +241,6 @@ void interpPortalOnSend(void *mq, void *msg)
     int i;
 
     if (mq != (void *) sched_cmdQ || msg == NULL || msg != g_gfxTaskSettingsList) { return; }
-    if (rp_env("GE_INTERPPORTAL_OFF", &env_off)) { return; }
     t = (IpSchedTask *) msg;
     for (i = 0; i < RP_SLOTS; i++) {          /* same display list again: reuse its slot */
         if (s_ring[i].dl == (const void *) t->list.t.data_ptr) { break; }
@@ -223,7 +249,23 @@ void interpPortalOnSend(void *mq, void *msg)
         i = s_ringNext;
         s_ringNext = (s_ringNext + 1) % RP_SLOTS;
     }
+    ip_snapshot_cam(&s_ring[i], (const void *) t->list.t.data_ptr);   /* D954 */
+    if (rp_env("GE_INTERPPORTAL_OFF", &env_off)) {
+        s_ring[i].valid = 0;
+        return;
+    }
     ip_snapshot(&s_ring[i], (const void *) t->list.t.data_ptr);
+}
+
+/* D954: the frame's two projections (see IpSnap.cam_*); 0 when unavailable. */
+int interpPortalCamMatrices(int32_t proj[16], int32_t room[16])
+{
+    if (SC == NULL || !SC->cam_ok) {
+        return 0;
+    }
+    memcpy(proj, SC->cam_proj, sizeof(SC->cam_proj));
+    memcpy(room, SC->cam_room, sizeof(SC->cam_room));
+    return 1;
 }
 
 /* ------------------------------------------------------------------------- */
@@ -1045,8 +1087,12 @@ void interpPortalPassBegin(const void *dl)
 {
     int i;
     S = NULL;
+    SC = NULL;
     for (i = 0; i < RP_SLOTS; i++) {
         if (s_ring[i].valid && s_ring[i].dl == dl) { S = &s_ring[i]; break; }
+    }
+    for (i = 0; i < RP_SLOTS; i++) {
+        if (s_ring[i].cam_ok && s_ring[i].dl == dl) { SC = &s_ring[i]; break; }
     }
     s_world_have = 0;
     s_non_have = 0;

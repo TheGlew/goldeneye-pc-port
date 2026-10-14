@@ -2396,6 +2396,174 @@ static void gfx_interp_matrix_body(float matrix[4][4], bool proj, bool load) {
     }
 }
 
+/* D954: props follow the in-between camera. GE draws rooms under field_10E0
+ * (perspective * lookat, modelviews scale*translation) and everything else in
+ * the world -- chrs, doors and other props, glass, explosions, casings --
+ * under the plain perspective projmatrix with the camera in the modelview
+ * (bg.c chrpropsRenderPass; model.c LOD distance = view-space depth).
+ * In-between passes blend only the projection and draw modelviews exactly
+ * (D578, Deck A/B 2026-10-09), so rooms moved with the blended camera while
+ * props stayed at camera N: on every in-between present, whenever the camera
+ * moved, props jumped against the world and snapped back on the exact present
+ * (doors and guards flickering at 90 fps, never at 60).
+ *
+ * Fix: in the world part of a blend pass, a projection LOAD equal to the
+ * frame's plain perspective P is replaced by P * R^-1 * Rb, R = the frame's
+ * room projection, Rb = its blended version. Row vectors, R = L * P (checked
+ * once at runtime: R * P^-1 must be affine), so P * R^-1 = L^-1 and a prop
+ * drawn v * (W * L) * (L^-1 * Rb) = v * W * Rb lands exactly where a room
+ * vertex at the same world point lands. R and P come from the game-thread
+ * snapshot (interpPortalCamMatrices); Rb is the same pairing/blend the room
+ * loads get (gfx_interp_matrix, whose per-pass memo hands the room loads the
+ * identical result). Window: armed at gSPSegment(SPSEGMENT_BG_DL)
+ * (bgLevelRender: after the sky, before any room or prop), disarmed at the
+ * next gSPPerspNormalize (the first-person gun, gunfire.c, which inherits the
+ * loaded projection and must stay at the exact camera) and at every pass
+ * start. Exact passes, split-screen and menus are untouched; nothing changes
+ * at 60 fps (no blend passes). GE_INTERPPROPCAM_OFF=1 disables it. */
+static bool s_pcam_armed = false;
+static bool s_pcam_applied = false;          /* rsp.P_matrix currently holds a corrected P */
+static float s_pcam_P[4][4];                 /* frame's plain perspective, decoded */
+static float s_pcam_fix[4][4];               /* P * R^-1 * Rb */
+static float s_pcam_unfixed[4][4];           /* what the last corrected load would have been */
+static int s_pcam_conv = 0;                  /* 0 unchecked, 1 ok, -1 failed (disabled) */
+static unsigned s_pcam_cnt_pass = 0, s_pcam_cnt_load = 0, s_pcam_cnt_nosnap = 0, s_pcam_cnt_gun = 0;
+static float s_pcam_deg_sum = 0.0f, s_pcam_deg_max = 0.0f;
+
+static bool interp_propcam_off(void) {
+    static int off = -1;
+    if (off < 0) {
+        off = getenv("GE_INTERPPROPCAM_OFF") != nullptr ? 1 : 0;
+    }
+    return off == 1;
+}
+
+static void gfx_decode_mtx_words(const int32_t* addr, float m[4][4]) {
+#ifndef GBI_FLOATS
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j += 2) {
+            int32_t int_part = addr[i * 2 + j / 2];
+            uint32_t frac_part = addr[8 + i * 2 + j / 2];
+            m[i][j] = (int32_t)((int_part & 0xffff0000) | (frac_part >> 16)) / 65536.0f;
+            m[i][j + 1] = (int32_t)((int_part << 16) | (frac_part & 0xffff)) / 65536.0f;
+        }
+    }
+#else
+    memcpy(m, addr, sizeof(float) * 16);
+#endif
+}
+
+/* General 4x4 inverse (Gauss-Jordan, partial pivoting). */
+static bool gfx_mat4_inverse(const float in[4][4], float out[4][4]) {
+    double a[4][8];
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            a[i][j] = in[i][j];
+            a[i][j + 4] = (i == j) ? 1.0 : 0.0;
+        }
+    }
+    for (int c = 0; c < 4; c++) {
+        int piv = c;
+        for (int r = c + 1; r < 4; r++) {
+            if (fabs(a[r][c]) > fabs(a[piv][c])) {
+                piv = r;
+            }
+        }
+        if (fabs(a[piv][c]) < 1e-12) {
+            return false;
+        }
+        if (piv != c) {
+            for (int j = 0; j < 8; j++) {
+                const double t = a[c][j];
+                a[c][j] = a[piv][j];
+                a[piv][j] = t;
+            }
+        }
+        const double d = a[c][c];
+        for (int j = 0; j < 8; j++) {
+            a[c][j] /= d;
+        }
+        for (int r = 0; r < 4; r++) {
+            if (r != c && a[r][c] != 0.0) {
+                const double f = a[r][c];
+                for (int j = 0; j < 8; j++) {
+                    a[r][j] -= f * a[c][j];
+                }
+            }
+        }
+    }
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            out[i][j] = (float)a[i][j + 4];
+        }
+    }
+    return true;
+}
+
+/* gSPSegment(SPSEGMENT_BG_DL): the world part of the pass begins. */
+static void gfx_pcam_arm(void) {
+    s_pcam_armed = false;
+    if (s_interp_mode != INTERP_BLEND || s_interp_alpha >= 1.0f || s_pcam_conv < 0 || interp_propcam_off()) {
+        return;
+    }
+    int32_t pw[16], rw[16];
+    if (!interpPortalCamMatrices(pw, rw)) {
+        s_pcam_cnt_nosnap++;
+        return;
+    }
+    float P[4][4], R[4][4], Rinv[4][4];
+    gfx_decode_mtx_words(pw, P);
+    gfx_decode_mtx_words(rw, R);
+    if (!gfx_mat4_inverse(R, Rinv)) {
+        return;
+    }
+    if (s_pcam_conv == 0) {
+        /* R = L * P (row vectors) <=> R * P^-1 is affine (last column 0,0,0,1). */
+        float Pinv[4][4], L[4][4];
+        bool ok = gfx_mat4_inverse(P, Pinv);
+        if (ok) {
+            gfx_matrix_mul(L, R, Pinv);
+            const float sc = fmaxf(fabsf(L[0][0]) + fabsf(L[0][1]) + fabsf(L[0][2]), 1e-6f);
+            ok = fabsf(L[0][3]) < 1e-3f * sc && fabsf(L[1][3]) < 1e-3f * sc && fabsf(L[2][3]) < 1e-3f * sc &&
+                 fabsf(L[3][3] - 1.0f) < 1e-2f;
+            sysLogPrintf(LOG_NOTE, "D954 prop camera: convention check %s (R*P^-1 last column %.4g %.4g %.4g %.4g)",
+                         ok ? "ok" : "FAILED -> disabled", L[0][3], L[1][3], L[2][3], L[3][3]);
+        }
+        s_pcam_conv = ok ? 1 : -1;
+        if (!ok) {
+            return;
+        }
+    }
+    /* The room projection's in-between version, exactly as its loads get it. */
+    float Rb[4][4];
+    memcpy(Rb, R, sizeof(Rb));
+    gfx_interp_matrix(Rb, true, true);
+    if (s_interp_alpha >= 1.0f || !memcmp(Rb, R, sizeof(Rb))) {
+        return;   /* exact pass (or no partner): nothing to correct */
+    }
+    float tmp[4][4];
+    gfx_matrix_mul(tmp, P, Rinv);
+    gfx_matrix_mul(s_pcam_fix, tmp, Rb);
+    memcpy(s_pcam_P, P, sizeof(s_pcam_P));
+    s_pcam_armed = true;
+    s_pcam_cnt_pass++;
+    const float deg = gfx_interp_cam_offset_deg(R, Rb);
+    s_pcam_deg_sum += deg;
+    if (deg > s_pcam_deg_max) {
+        s_pcam_deg_max = deg;
+    }
+}
+
+/* gSPPerspNormalize (the gun): leave the world part, back to the exact P. */
+static void gfx_pcam_disarm(void) {
+    if (s_pcam_applied) {
+        memcpy(rsp.P_matrix, s_pcam_unfixed, sizeof(s_pcam_unfixed));
+        gfx_matrix_mul(rsp.MP_matrix, rsp.modelview_matrix_stack[rsp.modelview_matrix_stack_size - 1], rsp.P_matrix);
+        s_pcam_applied = false;
+    }
+    s_pcam_armed = false;
+}
+
 static void gfx_sp_matrix(uint8_t parameters, const int32_t* addr) {
     float matrix[4][4];
 
@@ -2429,11 +2597,22 @@ static void gfx_sp_matrix(uint8_t parameters, const int32_t* addr) {
     memcpy(matrix, addr, sizeof(matrix));
 #endif
 
+    /* D954: a plain-perspective load inside the world part of a blend pass. */
+    const bool pcam = s_pcam_armed && !addr_bad && (parameters & G_MTX_PROJECTION) && (parameters & G_MTX_LOAD) &&
+                      !memcmp(matrix, s_pcam_P, sizeof(matrix));
+
     if (s_interp_mode != INTERP_OFF && !addr_bad) {   /* D578 */
         gfx_interp_matrix(matrix, (parameters & G_MTX_PROJECTION) != 0, (parameters & G_MTX_LOAD) != 0);
     }
 
     if (parameters & G_MTX_PROJECTION) {
+        s_pcam_applied = false;
+        if (pcam) {
+            memcpy(s_pcam_unfixed, matrix, sizeof(matrix));
+            memcpy(matrix, s_pcam_fix, sizeof(matrix));
+            s_pcam_applied = true;
+            s_pcam_cnt_load++;
+        }
         if (parameters & G_MTX_LOAD) {
             memcpy(rsp.P_matrix, matrix, sizeof(matrix));
         } else {
@@ -4370,6 +4549,12 @@ static void gfx_sp_moveword(uint8_t index, uint16_t offset, uintptr_t data) {
             rsp.fog_mul = (int16_t)(data >> 16);
             rsp.fog_offset = (int16_t)data;
             break;
+        case G_MW_PERSPNORM:
+            if (s_pcam_armed || s_pcam_applied) {
+                s_pcam_cnt_gun++;
+                gfx_pcam_disarm();   /* D954: the first-person gun follows */
+            }
+            break;
         case G_MW_SEGMENT: {
             // GE registers segment bases as OS_K0_TO_PHYSICAL(ptr); store the
             // live host pointer so seg_addr() resolves seg+offset correctly.
@@ -4382,6 +4567,9 @@ static void gfx_sp_moveword(uint8_t index, uint16_t offset, uintptr_t data) {
                 v = (uintptr_t)portN64ToHost((u32)v);
             }
             segmentPointers[(offset >> 2) & 0xff] = v;
+            if (((offset >> 2) & 0xff) == 15 && s_interp_mode == INTERP_BLEND) {
+                gfx_pcam_arm();   /* D954: SPSEGMENT_BG_DL = bgLevelRender, the world part begins */
+            }
             if (((offset >> 2) & 0xff) == 14) {
                 s_interp_seg14 = (uint32_t)data;
                 if (s_interp_mode != INTERP_OFF) {
@@ -6020,6 +6208,8 @@ extern "C" int gfx_interp_tick(Gfx* commands, const float* alphas, int n, int ba
         s_interp_unmatched = 0;
         s_interp_clamp_req = 0.0f;
         s_interp_rooms_pass.clear();
+        s_pcam_armed = false;   /* D954 (rsp was restored from the snapshot above) */
+        s_pcam_applied = false;
         gfx_frame_body(commands, passes == 0, &overlay, 0, &unused0, &unused1);
         s_interp_body_runs++;
         record = false;
@@ -6226,6 +6416,11 @@ extern "C" int gfx_interp_tick(Gfx* commands, const float* alphas, int n, int ba
             sysLogPrintf(LOG_NOTE, "D583 projection memo: %u repeat loads, %u where the pairing gave a different camera",
                          s_interp_pmemo_hit, s_interp_pmemo_diff);
             s_interp_pmemo_hit = s_interp_pmemo_diff = 0;
+            sysLogPrintf(LOG_NOTE, "D954 prop camera: %u passes corrected, %u prop projection loads, prop-vs-room camera offset removed: mean %.2f max %.2f deg, %u passes without a snapshot, %u ended at the gun",
+                         s_pcam_cnt_pass, s_pcam_cnt_load, s_pcam_cnt_pass ? s_pcam_deg_sum / (float)s_pcam_cnt_pass : 0.0f,
+                         s_pcam_deg_max, s_pcam_cnt_nosnap, s_pcam_cnt_gun);
+            s_pcam_cnt_pass = s_pcam_cnt_load = s_pcam_cnt_nosnap = s_pcam_cnt_gun = 0;
+            s_pcam_deg_sum = s_pcam_deg_max = 0.0f;
             s_interp_cnt_ip_exact = s_interp_cnt_ip_soft = s_interp_cnt_late_exact = s_interp_cnt_late_soft = 0;
             if (s_interp_hid_entering > 0) {
                 sysLogPrintf(LOG_NOTE, "D583 entering rooms hidden in in-between passes: %u", s_interp_hid_entering);
@@ -6235,6 +6430,8 @@ extern "C" int gfx_interp_tick(Gfx* commands, const float* alphas, int n, int ba
     }
     s_interp_mode = INTERP_OFF;
     s_interp_record = false;
+    s_pcam_armed = false;   /* D954 */
+    s_pcam_applied = false;
     s_interp_prev.swap(s_interp_cur);
     s_interp_have_prev = true;
     if (s_interp_rooms_prev_valid && s_interp_rooms_pass != s_interp_rooms_prev) {

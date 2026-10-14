@@ -2012,3 +2012,7 @@ A 100 % score on a derived metric is a circularity smell, not a result.
 ## D44. RDP IA4 is I3:A1; a decode tweak justified by "hardware layout" needs a texel dump (D644)
 
 IA4 = 3-bit intensity + 1-bit alpha (nibble = I<<1 | A). An I2:A2 decode (D266) turned the A=0 nibbles 2/4/6 into semi-opaque black and drew the file-select crest on a dark square. When a texture's transparent texels render opaque, histogram the raw nibbles/bytes (`GE_TEXRAW` + `GE_D526` for the draw's fmt/oml/comb) before touching blender or alpha-compare code: the importer's alpha expansion is the cheapest suspect.
+
+## D45. Interpolating GE: rooms carry the camera in the projection, props carry it in the modelview (D954)
+
+GE loads two projections per view: `field_10E0` = perspective * lookat for rooms (modelviews are scale*translation), and the plain perspective `projmatrix` for chrs, doors, props, glass, explosions and the gun (camera baked into each modelview; LOD reads `-m[3][2]` as view depth). An interpolator that blends only the projection moves the rooms and leaves every prop at the exact camera, which reads as props flickering against the world at high frame rates only. Give the plain perspective the room camera blend (`P * R^-1 * Rb`, row vectors, `R = L * P`), and stop before anything camera-attached (the gun inherits the loaded projection; its `gSPPerspNormalize` marks the boundary). Check the matrix order at runtime (`R * P^-1` affine) instead of assuming it.

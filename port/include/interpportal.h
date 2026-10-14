@@ -56,6 +56,9 @@ int interpPortalTakeExtraRooms(uint32_t *vphys, int *prevdrew, int max);
  * REACH test above decides holes geometrically). */
 int interpPortalReplayedThisPass(void);
 unsigned interpPortalExtraCount(void);
+/* D954: the drawn frame's plain perspective (props) and perspective*lookat
+ * (rooms) as fixed-point Mtx words; 0 = unavailable (split-screen, menus). */
+int interpPortalCamMatrices(int32_t proj[16], int32_t room[16]);
 
 #ifdef __cplusplus
 }
