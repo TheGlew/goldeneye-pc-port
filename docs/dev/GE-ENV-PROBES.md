@@ -28,6 +28,7 @@ Two classes:
 | `GE_INTERPPORTAL_OFF` | `port/fast3d/gfx_pc.cpp:4156` | D578: disable the portal-scissor replay on in-between passes. | live switch |
 | `GE_INTERPROOM_OFF` | `port/fast3d/gfx_pc.cpp:6059` | D578: disable the room-change exact fallback. | live switch |
 | `GE_INTERPREACH_OFF` | `port/fast3d/gfx_pc.cpp:6128` | D583: disable the REACH exact fallback. | live switch |
+| `GE_INTERPOBJ_OFF` | `port/fast3d/gfx_pc.cpp:2626` | D955: in-between presents draw objects at their tick pose again (no per-joint motion blend; counters still run). A group whose joints step more than 120 units in a tick is drawn exact. | live switch |
 | `GE_INTERPPROPCAM_OFF` | `port/fast3d/gfx_pc.cpp:2436` | D954: in-between presents draw props at the exact camera again (no room-camera blend on the plain perspective). | live switch |
 | `GE_PCDUMP_PRESENTS` | `port/src/video.c:1539` | With `GE_PCDUMP`: one capture per present instead of per game frame. | live tooling |
 | `GE_NOTICKLOCK` | `port/src/libultra.c:1321` | D600: disable the display-locked retrace tick. | live switch |

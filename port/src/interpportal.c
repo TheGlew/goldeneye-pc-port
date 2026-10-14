@@ -90,6 +90,8 @@ static int rp_env(const char *name, int *cache)
 /* Frame snapshot (game thread)                                               */
 /* ------------------------------------------------------------------------- */
 
+#define IP_MAXOBJ 384
+
 typedef struct {
     const void *dl;                 /* key: the frame's display list */
     int valid;
@@ -136,6 +138,12 @@ typedef struct {
     int cam_ok;
     s32 cam_proj[16];
     s32 cam_room[16];
+
+    /* D955: on-screen model instances (only when cam_ok). */
+    int obj_n;
+    IpObjInst obj[IP_MAXOBJ];
+    float origin[3];
+    unsigned obj_serial;
 } IpSnap;
 
 static IpSnap s_ring[RP_SLOTS];
@@ -143,6 +151,7 @@ static int s_ringNext;
 static const IpSnap *S;             /* snapshot of the frame being drawn (render thread) */
 static const IpSnap *SC;            /* D954: same frame, camera matrices (valid or not for the replay) */
 static unsigned s_snapSerial;
+static unsigned s_objSerial;        /* D955: one per sent frame (cam snapshot) */
 
 typedef struct IpSchedTask {        /* mirror of OSScTask (src/sched.h) up to `list` */
     void *next;
@@ -153,6 +162,89 @@ typedef struct IpSchedTask {        /* mirror of OSScTask (src/sched.h) up to `l
 } IpSchedTask;
 
 extern s32 getPlayerCount(void);
+extern PropRecord *g_OnScreenPropList[];
+
+/* D955: add one model instance to the snapshot. */
+static void ip_obj_add(IpSnap *s, Model *m, PropRecord *prop, int group, int group_is_rigid)
+{
+    IpObjInst *o;
+    int i;
+    if (m == NULL || m->render_pos == NULL || m->obj == NULL || m->obj->numMatrices <= 0) {
+        return;
+    }
+    for (i = 0; i < s->obj_n; i++) {
+        if (s->obj[i].model == m) { return; }     /* already listed (a child drawn on its own too) */
+    }
+    if (s->obj_n >= IP_MAXOBJ) { return; }
+    o = &s->obj[s->obj_n++];
+    o->render_pos = m->render_pos;
+    o->model = m;
+    o->modelobj = m->obj;
+    o->nmtx = m->obj->numMatrices;
+    o->group = group;
+    o->type = prop->type;
+    o->rigid = (prop->type == PROP_TYPE_OBJ || prop->type == PROP_TYPE_DOOR || prop->type == PROP_TYPE_WEAPON) && group_is_rigid;
+    o->pos[0] = prop->pos.f[0];
+    o->pos[1] = prop->pos.f[1];
+    o->pos[2] = prop->pos.f[2];
+}
+
+/* D955: props attached to `prop` (prop->child chain, e.g. objects carried
+ * by an object or chr), into the same group; two levels deep. */
+static void ip_obj_children(IpSnap *s, PropRecord *prop, int group, int depth)
+{
+    PropRecord *c;
+    if (depth > 2) { return; }
+    for (c = prop->child; c != NULL; c = c->next) {
+        if ((c->type == PROP_TYPE_OBJ || c->type == PROP_TYPE_WEAPON || c->type == PROP_TYPE_DOOR) && c->obj != NULL) {
+            ip_obj_add(s, c->obj->model, c, group, 0);
+        }
+        ip_obj_children(s, c, group, depth + 1);
+    }
+}
+
+/* D955: the frame's on-screen props, as the render step left them. CHRs bring
+ * their held weapons and hat (one group); OBJ/WEAPON/DOOR are their own group.
+ * Explosions, smoke and the viewer are left out (geometry rebuilt every tick),
+ * and so are doors whose vertices the CPU resizes for the tick (the same test
+ * as propobj.c's CLIP_TO_BBOX / eye / iris door branch): drawn exact. */
+static void ip_snapshot_objs(IpSnap *s)
+{
+    int i, k, group = 0;
+    struct player *p = g_CurrentPlayer;
+    s->obj_n = 0;
+    s->origin[0] = p->current_model_pos.f[0];
+    s->origin[1] = p->current_model_pos.f[1];
+    s->origin[2] = p->current_model_pos.f[2];
+    for (i = 0; i < 800 && g_OnScreenPropList[i] != NULL; i++) {
+        PropRecord *prop = g_OnScreenPropList[i];
+        group++;
+        if (prop->type == PROP_TYPE_CHR && prop->chr != NULL) {
+            ChrRecord *chr = prop->chr;
+            ip_obj_add(s, chr->model, prop, group, 0);
+            for (k = 0; k < 2; k++) {
+                PropRecord *w = chr->weapons_held[k];
+                if (w != NULL && w->obj != NULL) { ip_obj_add(s, w->obj->model, w, group, 0); }
+            }
+            if (chr->handle_positiondata_hat != NULL && chr->handle_positiondata_hat->obj != NULL) {
+                ip_obj_add(s, chr->handle_positiondata_hat->obj->model, chr->handle_positiondata_hat, group, 0);
+            }
+            ip_obj_children(s, prop, group, 0);
+        } else if ((prop->type == PROP_TYPE_OBJ || prop->type == PROP_TYPE_WEAPON || prop->type == PROP_TYPE_DOOR) &&
+                   prop->obj != NULL) {
+            ObjectRecord *obj = prop->obj;
+            if (prop->type == PROP_TYPE_DOOR) {
+                DoorRecord *door = (DoorRecord *) obj;
+                if ((door->doorFlags & DOORFLAG_CLIP_TO_BBOX) || door->doorType == DOORTYPE_EYE ||
+                    door->doorType == DOORTYPE_IRIS) {
+                    continue;
+                }
+            }
+            ip_obj_add(s, obj->model, prop, group, 1);
+            ip_obj_children(s, prop, group, 0);
+        }
+    }
+}
 
 /* D954: game thread, with the frame's graphics task. */
 static void ip_snapshot_cam(IpSnap *s, const void *dl)
@@ -161,12 +253,15 @@ static void ip_snapshot_cam(IpSnap *s, const void *dl)
     _Static_assert(sizeof(Mtx) == sizeof(s->cam_proj), "D954: Mtx must be 16 fixed-point words");
     s->dl = dl;
     s->cam_ok = 0;
+    s->obj_n = 0;
+    s->obj_serial = ++s_objSerial;
     if (p == NULL || p->projmatrix == NULL || p->field_10E0 == NULL || getPlayerCount() != 1) {
         return;
     }
     memcpy(s->cam_proj, p->projmatrix, sizeof(s->cam_proj));
     memcpy(s->cam_room, p->field_10E0, sizeof(s->cam_room));
     s->cam_ok = 1;
+    ip_snapshot_objs(s);
 }
 
 static void ip_snapshot(IpSnap *s, const void *dl)
@@ -255,6 +350,20 @@ void interpPortalOnSend(void *mq, void *msg)
         return;
     }
     ip_snapshot(&s_ring[i], (const void *) t->list.t.data_ptr);
+}
+
+/* D955: the frame's on-screen model instances (see IpSnap.obj). */
+int interpPortalObjInstances(const IpObjInst **out, float origin[3], unsigned *serial)
+{
+    if (SC == NULL || !SC->cam_ok) {
+        return 0;
+    }
+    *out = SC->obj;
+    origin[0] = SC->origin[0];
+    origin[1] = SC->origin[1];
+    origin[2] = SC->origin[2];
+    *serial = SC->obj_serial;
+    return SC->obj_n;
 }
 
 /* D954: the frame's two projections (see IpSnap.cam_*); 0 when unavailable. */

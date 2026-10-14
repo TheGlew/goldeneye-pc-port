@@ -2564,6 +2564,300 @@ static void gfx_pcam_disarm(void) {
     s_pcam_armed = false;
 }
 
+/* D955: object motion at 90+ fps. In-between passes drew every object at its
+ * tick-N pose (D578 draws modelviews exactly; D954 only moves the camera), so
+ * props and chrs stepped at the 60 Hz tick inside a 90 Hz picture. GE models
+ * are matrix-skinned: each instance's joint matrices for the tick sit in
+ * model->render_pos (dyn pool, nmtx fixed-point Mtx), loaded by the model DLs
+ * through segment 3; the camera is baked in (basemtx = camGetWorldToScreenMtxf).
+ * Identity comes from the game-thread snapshot (interpPortalObjInstances): a
+ * G_MTX MODELVIEW LOAD whose source lies in an instance's block is
+ * (Model*, joint). Blend, per joint, in camera-N space:
+ *     D   = L_{N-1}^-1 * L_N          (L_k = R_k * P_k^-1, row vectors, R = L * P)
+ *     MVb = lerp_rows(MV_{N-1} * D, MV_N, alpha)
+ * so the object takes its blended world pose, and D954's projection then
+ * carries the blended camera. A group (a chr, its held weapons and hat) blends
+ * or stays exact as a whole. Exact for: a room-origin change (every MV is
+ * relative to current_model_pos, which jumps at a room change), a missing or
+ * non-consecutive previous frame, a model whose file changed, a joint that
+ * moved further than a tick plausibly allows (teleport, respawn), split-screen
+ * and anything outside the D954 window (effects, gun, HUD). A previous pose is
+ * only kept for instances whose matrices this frame's DL actually loaded (an
+ * on-screen-list entry that was not drawn has a stale render_pos).
+ * GE_INTERPOBJ_OFF=1 disables it (counters still run). */
+struct ObjKey {
+    const void* model;
+    const void* modelobj;
+    bool operator==(const ObjKey& o) const { return model == o.model && modelobj == o.modelobj; }
+};
+struct ObjKeyHash {
+    size_t operator()(const ObjKey& k) const { return std::hash<const void*>()(k.model) ^ (std::hash<const void*>()(k.modelobj) << 1); }
+};
+struct ObjPose {
+    std::vector<InterpMtx> m;       /* decoded joint matrices of the tick */
+    float pos[3];
+};
+struct ObjInst {
+    uintptr_t lo, hi;               /* render_pos block */
+    int nmtx, group, type, rigid;
+    ObjKey key;
+    bool hit;                       /* a load of this frame's DL used it */
+    bool blend;                     /* this frame: blend (pair + gate + group ok) */
+    std::vector<InterpMtx> cur, a;  /* tick N; tick N-1 rebased by D */
+    std::vector<InterpMtx> out;     /* this pass's blended matrices */
+    float pos[3];
+    float alpha_out;                /* alpha `out` was built for */
+};
+static std::vector<ObjInst> s_obj;               /* this frame, sorted by lo */
+static std::unordered_map<ObjKey, ObjPose, ObjKeyHash> s_obj_prev;
+static float s_obj_Lprev[4][4];
+static float s_obj_origin_prev[3];
+static unsigned s_obj_serial_prev = 0;
+static bool s_obj_have_prev = false;
+static bool s_obj_frame = false;                 /* s_obj holds this frame */
+static unsigned s_obj_cnt_frames = 0, s_obj_cnt_noprev = 0, s_obj_cnt_origin = 0, s_obj_cnt_inst = 0,
+                s_obj_cnt_grp_blend = 0, s_obj_cnt_grp_exact = 0, s_obj_cnt_loads = 0, s_obj_cnt_loads_blend = 0,
+                s_obj_cnt_unkeyed = 0, s_obj_cnt_gate = 0, s_obj_cnt_static = 0;
+static float s_obj_res_sum = 0.0f, s_obj_res_max = 0.0f, s_obj_step_max = 0.0f;
+
+static bool interp_obj_off(void) {
+    static int off = -1;
+    if (off < 0) {
+        off = getenv("GE_INTERPOBJ_OFF") != nullptr ? 1 : 0;
+    }
+    return off == 1;
+}
+
+/* Could a (rebased) and b be one joint one tick apart? World units; a tank
+ * or the train moves a few tens of units per tick, a teleport hundreds. */
+static bool gfx_obj_plausible(const float a[4][4], const float b[4][4], float* stepOut) {
+    float dt = 0.0f;
+    for (int j = 0; j < 3; j++) {
+        dt += (a[3][j] - b[3][j]) * (a[3][j] - b[3][j]);
+    }
+    dt = sqrtf(dt);
+    *stepOut = dt;
+    if (dt > GE_ENVF("GE_INTERPOBJ_STEP", 120.0f)) {
+        return false;
+    }
+    for (int i = 0; i < 3; i++) {
+        float la = 0.0f, lb = 0.0f, d = 0.0f;
+        for (int j = 0; j < 3; j++) {
+            la += a[i][j] * a[i][j];
+            lb += b[i][j] * b[i][j];
+            d += a[i][j] * b[i][j];
+        }
+        if (la < 1e-12f || lb < 1e-12f) {
+            return false;
+        }
+        const float r = sqrtf(la / lb);
+        if (r < 0.8f || r > 1.25f || d / sqrtf(la * lb) < 0.82f) {   /* ~35 deg, scale jump */
+            return false;
+        }
+    }
+    return true;
+}
+
+/* Start of a game frame (before its passes): read the snapshot and this
+ * tick's matrices, pair with the previous frame, decide per group. */
+static void gfx_obj_frame_begin(void) {
+    s_obj.clear();
+    s_obj_frame = false;
+    const IpObjInst* in = nullptr;
+    float origin[3];
+    unsigned serial = 0;
+    const int n = interpPortalObjInstances(&in, origin, &serial);
+    int32_t pw[16], rw[16];
+    float P[4][4], R[4][4], Pinv[4][4], L[4][4];
+    if (n <= 0 || !interpPortalCamMatrices(pw, rw)) {
+        s_obj_have_prev = false;
+        return;
+    }
+    gfx_decode_mtx_words(pw, P);
+    gfx_decode_mtx_words(rw, R);
+    if (!gfx_mat4_inverse(P, Pinv)) {
+        s_obj_have_prev = false;
+        return;
+    }
+    gfx_matrix_mul(L, R, Pinv);
+    s_obj_cnt_frames++;
+    s_obj.resize(n);
+    for (int i = 0; i < n; i++) {
+        ObjInst& o = s_obj[i];
+        o.lo = (uintptr_t)in[i].render_pos;
+        o.hi = o.lo + (uintptr_t)in[i].nmtx * 64u;
+        o.nmtx = in[i].nmtx;
+        o.group = in[i].group;
+        o.type = in[i].type;
+        o.rigid = in[i].rigid;
+        o.key = ObjKey{ in[i].model, in[i].modelobj };
+        o.hit = false;
+        o.blend = false;
+        o.alpha_out = -1.0f;
+        memcpy(o.pos, in[i].pos, sizeof(o.pos));
+        o.cur.resize(o.nmtx);
+        for (int j = 0; j < o.nmtx; j++) {
+            gfx_decode_mtx_words((const int32_t*)(o.lo + (uintptr_t)j * 64u), o.cur[j].m);
+        }
+    }
+    std::sort(s_obj.begin(), s_obj.end(), [](const ObjInst& x, const ObjInst& y) { return x.lo < y.lo; });
+    s_obj_cnt_inst += (unsigned)n;
+    s_obj_frame = true;
+
+    const bool sameOrigin = s_obj_have_prev && !memcmp(origin, s_obj_origin_prev, sizeof(origin));
+    const bool consecutive = s_obj_have_prev && serial == s_obj_serial_prev + 1;
+    float D[4][4], Lpinv[4][4];
+    bool haveD = consecutive && sameOrigin && gfx_mat4_inverse(s_obj_Lprev, Lpinv);
+    if (haveD) {
+        gfx_matrix_mul(D, Lpinv, L);
+    }
+    if (!consecutive) {
+        s_obj_cnt_noprev++;
+    } else if (!sameOrigin) {
+        s_obj_cnt_origin++;
+    }
+    /* Pair + gate per instance; a group is exact if any member fails. */
+    std::unordered_map<int, bool> grpOk;
+    for (ObjInst& o : s_obj) {
+        bool ok = false;
+        if (haveD) {
+            auto it = s_obj_prev.find(o.key);
+            if (it != s_obj_prev.end() && (int)it->second.m.size() == o.nmtx) {
+                ok = true;
+                o.a.resize(o.nmtx);
+                const bool still = o.rigid && !memcmp(it->second.pos, o.pos, sizeof(o.pos));
+                for (int j = 0; j < o.nmtx; j++) {
+                    gfx_matrix_mul(o.a[j].m, it->second.m[j].m, D);
+                    float step;
+                    if (!gfx_obj_plausible(o.a[j].m, o.cur[j].m, &step)) {
+                        ok = false;
+                        s_obj_cnt_gate++;
+                    }
+                    if (step > s_obj_step_max) {
+                        s_obj_step_max = step;
+                    }
+                    if (still) {
+                        /* Stage 0 check: an object that did not move must
+                         * land exactly on itself after the rebase. */
+                        float res = 0.0f, sc = 1.0f;
+                        for (int c = 0; c < 3; c++) {
+                            sc = fmaxf(sc, fabsf(o.cur[j].m[3][c]));
+                        }
+                        for (int r = 0; r < 4; r++) {
+                            for (int c = 0; c < 3; c++) {
+                                const float e = fabsf(o.a[j].m[r][c] - o.cur[j].m[r][c]) / (r == 3 ? sc : 1.0f);
+                                res = fmaxf(res, e);
+                            }
+                        }
+                        s_obj_res_sum += res;
+                        s_obj_cnt_static++;
+                        if (res > s_obj_res_max) {
+                            s_obj_res_max = res;
+                        }
+                    }
+                }
+            }
+        }
+        auto g = grpOk.find(o.group);
+        if (g == grpOk.end()) {
+            grpOk[o.group] = ok;
+        } else if (!ok) {
+            g->second = false;
+        }
+    }
+    for (ObjInst& o : s_obj) {
+        o.blend = grpOk[o.group] && !interp_obj_off();
+    }
+    for (auto& g : grpOk) {
+        if (g.second) {
+            s_obj_cnt_grp_blend++;
+        } else {
+            s_obj_cnt_grp_exact++;
+        }
+    }
+    memcpy(s_obj_Lprev, L, sizeof(L));   /* committed at frame end */
+    memcpy(s_obj_origin_prev, origin, sizeof(origin));
+    s_obj_serial_prev = serial;
+}
+
+/* End of a game frame: this frame's drawn instances become the previous. */
+static void gfx_obj_frame_end(void) {
+    if (!s_obj_frame) {
+        s_obj_prev.clear();
+        s_obj_have_prev = false;
+        return;
+    }
+    s_obj_prev.clear();
+    for (ObjInst& o : s_obj) {
+        if (!o.hit) {
+            continue;
+        }
+        ObjPose& p = s_obj_prev[o.key];
+        p.m.swap(o.cur);
+        memcpy(p.pos, o.pos, sizeof(p.pos));
+    }
+    s_obj_have_prev = true;
+    s_obj_frame = false;
+}
+
+/* A MODELVIEW LOAD from `addr`: the instance + joint it belongs to, or null. */
+static ObjInst* gfx_obj_find(uintptr_t addr, int* joint) {
+    if (s_obj.empty()) {
+        return nullptr;
+    }
+    size_t lo = 0, hi = s_obj.size();
+    while (lo < hi) {
+        const size_t mid = (lo + hi) / 2;
+        if (s_obj[mid].lo <= addr) {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    if (lo == 0) {
+        return nullptr;
+    }
+    ObjInst& o = s_obj[lo - 1];
+    if (addr >= o.hi || ((addr - o.lo) & 63u) != 0) {
+        return nullptr;
+    }
+    *joint = (int)((addr - o.lo) / 64u);
+    return &o;
+}
+
+/* The blended joint for this pass (built once per instance per pass alpha). */
+static const float (*gfx_obj_blended(ObjInst& o, int joint))[4] {
+    const float t = s_interp_alpha;
+    if (o.alpha_out != t) {
+        o.out.resize(o.nmtx);
+        for (int k = 0; k < o.nmtx; k++) {
+            const float (*a)[4] = o.a[k].m;
+            const float (*b)[4] = o.cur[k].m;
+            float (*m)[4] = o.out[k].m;
+            for (int i = 0; i < 4; i++) {
+                float la = 0, lb = 0, lr = 0;
+                for (int j = 0; j < 4; j++) {
+                    m[i][j] = a[i][j] + (b[i][j] - a[i][j]) * t;
+                    if (j < 3) {
+                        la += a[i][j] * a[i][j];
+                        lb += b[i][j] * b[i][j];
+                        lr += m[i][j] * m[i][j];
+                    }
+                }
+                if (i < 3 && lr > 1e-12f) {   /* keep the blended basis length (no cos/2 shrink) */
+                    const float want = sqrtf(la) + (sqrtf(lb) - sqrtf(la)) * t;
+                    const float k2 = want / sqrtf(lr);
+                    for (int j = 0; j < 3; j++) {
+                        m[i][j] *= k2;
+                    }
+                }
+            }
+        }
+        o.alpha_out = t;
+    }
+    return o.out[joint].m;
+}
+
 static void gfx_sp_matrix(uint8_t parameters, const int32_t* addr) {
     float matrix[4][4];
 
@@ -2603,6 +2897,28 @@ static void gfx_sp_matrix(uint8_t parameters, const int32_t* addr) {
 
     if (s_interp_mode != INTERP_OFF && !addr_bad) {   /* D578 */
         gfx_interp_matrix(matrix, (parameters & G_MTX_PROJECTION) != 0, (parameters & G_MTX_LOAD) != 0);
+    }
+
+    /* D955: an object joint (see gfx_obj_frame_begin). */
+    if (s_obj_frame && !addr_bad && !(parameters & G_MTX_PROJECTION) && (parameters & G_MTX_LOAD)) {
+        int joint;
+        ObjInst* o = gfx_obj_find((uintptr_t)addr, &joint);
+        if (o != nullptr) {
+            o->hit = true;
+            /* Only under the props' corrected plain perspective: a destroyed
+             * object is drawn under the room projection with world-space
+             * matrices (propobj.c objRender), where the camera rebase would be
+             * wrong -- exact there. */
+            if (s_pcam_armed && s_pcam_applied) {
+                s_obj_cnt_loads++;
+                if (o->blend) {
+                    memcpy(matrix, gfx_obj_blended(*o, joint), sizeof(matrix));
+                    s_obj_cnt_loads_blend++;
+                }
+            }
+        } else if (s_pcam_armed) {
+            s_obj_cnt_unkeyed++;
+        }
     }
 
     if (parameters & G_MTX_PROJECTION) {
@@ -5258,6 +5574,70 @@ static void gfx_dp_set_other_mode(uint32_t h, uint32_t l) {
     rdp.other_mode_l = l;
 }
 
+/* D955 (sky): the sky and sky water are pre-projected on the CPU for camera N
+ * (sky.c: clip-space (ndcX*w, ndcY*w, 0, w) through G_FLOATVTX_EXT), so on an
+ * in-between present they stayed at camera N while the world took the
+ * blended camera: the horizon shuddered against buildings while turning. Per
+ * blend pass the camera-space delta C = L_N^-1 * L_b = P * R^-1 * Rb * P^-1
+ * (R = the frame's room projection, Rb = its blend, paired and blended as the
+ * projection loads are; P = the plain perspective the sky was projected with)
+ * is applied to each sky vertex: rebuild its view point (x_c/sx, y_c/sy, -w),
+ * rotate by C's 3x3 (the sky is at infinity: no translation), re-project.
+ * S/T are plane coordinates and stay as they are. */
+static int s_sky_state = 0;          /* per pass: 0 unknown, 1 apply, -1 none */
+static float s_sky_C[3][3], s_sky_sx = 1.0f, s_sky_sy = 1.0f;
+static unsigned s_sky_cnt_pass = 0;
+
+static void gfx_sky_prepare(void) {
+    s_sky_state = -1;
+    if (s_interp_mode != INTERP_BLEND || s_interp_alpha >= 1.0f || interp_propcam_off() || s_pcam_conv < 0) {
+        return;
+    }
+    int32_t pw[16], rw[16];
+    if (!interpPortalCamMatrices(pw, rw)) {
+        return;
+    }
+    float P[4][4], R[4][4], Pinv[4][4], Rinv[4][4];
+    gfx_decode_mtx_words(pw, P);
+    gfx_decode_mtx_words(rw, R);
+    auto it = s_interp_prev.find(gfx_interp_key(0, true));
+    if (it == s_interp_prev.end() || it->second.empty() || !gfx_mat4_inverse(P, Pinv) || !gfx_mat4_inverse(R, Rinv) ||
+        fabsf(P[0][0]) < 1e-6f || fabsf(P[1][1]) < 1e-6f) {
+        return;
+    }
+    const InterpMtx* best = nullptr;
+    float bestd = 0.0f;
+    for (const InterpMtx& c : it->second) {
+        const float d = gfx_interp_dist(c.m, R);
+        if (!best || d < bestd) {
+            best = &c;
+            bestd = d;
+        }
+    }
+    if (!best || !gfx_interp_plausible(best->m, R, true)) {
+        return;
+    }
+    float Rb[4][4], t1[4][4], t2[4][4], C[4][4];
+    const float t = s_interp_alpha;
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            Rb[i][j] = best->m[i][j] + (R[i][j] - best->m[i][j]) * t;
+        }
+    }
+    gfx_matrix_mul(t1, P, Rinv);
+    gfx_matrix_mul(t2, t1, Rb);
+    gfx_matrix_mul(C, t2, Pinv);
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            s_sky_C[i][j] = C[i][j];
+        }
+    }
+    s_sky_sx = P[0][0];
+    s_sky_sy = P[1][1];
+    s_sky_state = 1;
+    s_sky_cnt_pass++;
+}
+
 /* D245 (M-201): G_FLOATVTX_EXT loader -- gfx_sp_vertex for pre-transformed
  * clip-space float vertices with float S/T (see port/include/floatvtx.h).
  * Only the unlit, unfogged path the sky/water fans use is supported. */
@@ -5268,8 +5648,23 @@ static void gfx_sp_vertex_float(size_t n_vertices, size_t dest_index, const Port
     for (size_t i = 0; i < n_vertices; i++, dest_index++) {
         const PortFloatVtx* v = &vertices[i];
         struct LoadedVertex* d = &rsp.loaded_vertices[dest_index];
-        float x = gfx_adjust_x_for_aspect_ratio(v->x, v->w);
-        float y = v->y, z = v->z, w = v->w;
+        float vx = v->x, vy = v->y, vw = v->w;
+        if (s_sky_state == 0) {
+            gfx_sky_prepare();   /* D955 (sky) */
+        }
+        if (s_sky_state > 0 && vw > 1e-6f) {
+            const float px = vx / s_sky_sx, py = vy / s_sky_sy, pz = -vw;
+            const float qx = px * s_sky_C[0][0] + py * s_sky_C[1][0] + pz * s_sky_C[2][0];
+            const float qy = px * s_sky_C[0][1] + py * s_sky_C[1][1] + pz * s_sky_C[2][1];
+            const float qz = px * s_sky_C[0][2] + py * s_sky_C[1][2] + pz * s_sky_C[2][2];
+            if (qz < -1e-6f) {
+                vx = qx * s_sky_sx;
+                vy = qy * s_sky_sy;
+                vw = -qz;
+            }
+        }
+        float x = gfx_adjust_x_for_aspect_ratio(vx, vw);
+        float y = vy, z = v->z, w = vw;
         d->u = v->s * (float)rsp.texture_scaling_factor.s / 65536.0f;
         d->v = v->t * (float)rsp.texture_scaling_factor.t / 65536.0f;
         d->color.r = v->r;
@@ -6179,6 +6574,8 @@ extern "C" int gfx_interp_tick(Gfx* commands, const float* alphas, int n, int ba
         s_interp_cnt_pre_soft++;
     }
     s_interp_turn_max = 0.0f;
+    interpPortalPassBegin(commands);   /* D955: select this frame's snapshot before the passes */
+    gfx_obj_frame_begin();
     int passes = 0;
     bool record = true;        /* D583: record this pass's raw matrices (the first drawn) */
     bool exact_all = false;    /* D583: this pass is the frame's exact image: store it in every slot */
@@ -6210,6 +6607,7 @@ extern "C" int gfx_interp_tick(Gfx* commands, const float* alphas, int n, int ba
         s_interp_rooms_pass.clear();
         s_pcam_armed = false;   /* D954 (rsp was restored from the snapshot above) */
         s_pcam_applied = false;
+        s_sky_state = 0;        /* D955 (sky) */
         gfx_frame_body(commands, passes == 0, &overlay, 0, &unused0, &unused1);
         s_interp_body_runs++;
         record = false;
@@ -6420,6 +6818,17 @@ extern "C" int gfx_interp_tick(Gfx* commands, const float* alphas, int n, int ba
                          s_pcam_cnt_pass, s_pcam_cnt_load, s_pcam_cnt_pass ? s_pcam_deg_sum / (float)s_pcam_cnt_pass : 0.0f,
                          s_pcam_deg_max, s_pcam_cnt_nosnap, s_pcam_cnt_gun);
             s_pcam_cnt_pass = s_pcam_cnt_load = s_pcam_cnt_nosnap = s_pcam_cnt_gun = 0;
+            sysLogPrintf(LOG_NOTE, "D955 obj%s: %u frames (%u no prev, %u room-origin change), %u instances, groups %u blended / %u exact, joint loads %u blended of %u keyed, %u unkeyed in window, %u gate rejects, max step %.1f, static residual mean %.2g max %.2g (%u)",
+                         interp_obj_off() ? " (OFF)" : "", s_obj_cnt_frames, s_obj_cnt_noprev, s_obj_cnt_origin, s_obj_cnt_inst,
+                         s_obj_cnt_grp_blend, s_obj_cnt_grp_exact, s_obj_cnt_loads_blend, s_obj_cnt_loads, s_obj_cnt_unkeyed,
+                         s_obj_cnt_gate, s_obj_step_max, s_obj_cnt_static ? s_obj_res_sum / (float)s_obj_cnt_static : 0.0f,
+                         s_obj_res_max, s_obj_cnt_static);
+            s_obj_cnt_frames = s_obj_cnt_noprev = s_obj_cnt_origin = s_obj_cnt_inst = s_obj_cnt_grp_blend = 0;
+            s_obj_cnt_grp_exact = s_obj_cnt_loads = s_obj_cnt_loads_blend = s_obj_cnt_unkeyed = s_obj_cnt_gate = 0;
+            s_obj_cnt_static = 0;
+            sysLogPrintf(LOG_NOTE, "D955 sky: %u passes re-projected", s_sky_cnt_pass);
+            s_sky_cnt_pass = 0;
+            s_obj_res_sum = s_obj_res_max = s_obj_step_max = 0.0f;
             s_pcam_deg_sum = s_pcam_deg_max = 0.0f;
             s_interp_cnt_ip_exact = s_interp_cnt_ip_soft = s_interp_cnt_late_exact = s_interp_cnt_late_soft = 0;
             if (s_interp_hid_entering > 0) {
@@ -6432,6 +6841,8 @@ extern "C" int gfx_interp_tick(Gfx* commands, const float* alphas, int n, int ba
     s_interp_record = false;
     s_pcam_armed = false;   /* D954 */
     s_pcam_applied = false;
+    s_sky_state = -1;       /* D955 (sky): outside interpolation, never */
+    gfx_obj_frame_end();    /* D955 */
     s_interp_prev.swap(s_interp_cur);
     s_interp_have_prev = true;
     if (s_interp_rooms_prev_valid && s_interp_rooms_pass != s_interp_rooms_prev) {

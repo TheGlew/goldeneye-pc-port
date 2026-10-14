@@ -60,6 +60,25 @@ unsigned interpPortalExtraCount(void);
  * (rooms) as fixed-point Mtx words; 0 = unavailable (split-screen, menus). */
 int interpPortalCamMatrices(int32_t proj[16], int32_t room[16]);
 
+/* D955: one on-screen model instance of the drawn frame (game-thread snapshot).
+ * render_pos = the tick's joint matrix block (nmtx fixed-point Mtx, 64 bytes
+ * each; the DL loads them through segment 3). group = instances that must
+ * blend or fall back together (a chr, its held weapons and hat). */
+typedef struct IpObjInst {
+    const void *render_pos;
+    const void *model;
+    const void *modelobj;
+    float pos[3];
+    int nmtx;
+    int group;
+    int type;          /* PROP_TYPE_* */
+    int rigid;         /* OBJ / DOOR / WEAPON prop (not a chr or its attachment) */
+} IpObjInst;
+/* D955: the drawn frame's instances; *origin = current_model_pos (the room
+ * origin every view matrix is relative to), *serial = snapshot serial. 0 =
+ * none (split-screen, menus, no snapshot). */
+int interpPortalObjInstances(const IpObjInst **out, float origin[3], unsigned *serial);
+
 #ifdef __cplusplus
 }
 #endif
