@@ -1943,6 +1943,17 @@ void modelUpdateDistanceRelations(Model* model, ModelNode* node)
     else
     {
         distance = -mtx->m[3][2] * getPlayer_c_lodscalez();
+#ifdef PORT
+        /* D953: c_lodscalez is built from the RENDERED fovy (D222), so a
+         * wider Video.FovScale moved every model's LOD switch closer (x1.7
+         * at 150) and models swapped detail more often while turning.
+         * Rescale to the game's own fovy (port/src/video.c
+         * portLodScaleOwnFov; zoom kept, identity at the defaults). */
+        {
+            extern f32 portLodScaleOwnFov(void);
+            distance *= portLodScaleOwnFov();
+        }
+#endif
 
         if (g_ModelDistanceScale != 1)
         {

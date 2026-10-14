@@ -13576,6 +13576,16 @@ f32 chrobjFogVisRangeRelated(PropRecord *prop, f32 size)
             extern f32 portDrawDistanceMultiplier(void);
             temp_f12 /= portDrawDistanceMultiplier();
         }
+        /* D953: the FOV half of the above stopped holding when
+         * Video.DrawDistanceAutoFov became a legacy option (off): the
+         * multiplier is now the flat Video.DrawDistance, so at FovScale 150
+         * guards and props faded at x0.58 the distance of the default FOV,
+         * a view-depth test that swept over off-axis props while turning.
+         * Rescale c_lodscalez to the game's own fovy (identity at defaults). */
+        {
+            extern f32 portLodScaleOwnFov(void);
+            temp_f12 *= portLodScaleOwnFov();
+        }
 #endif
         temp_f12 = ((((prop->zDepth - nfd->MaxObfuscationRange) * 100.0f) / size) + nfd->MaxObfuscationRange) * temp_f12;
 
@@ -13619,10 +13629,12 @@ bool sub_GAME_7F054C58(coord3d *coord, f32 arg1)
             f32 scalez = getPlayer_c_lodscalez();
 #ifdef PORT
             /* D222/D218 follow-up -- see chrobjFogVisRangeRelated above,
-             * same fix for this sibling visibility test. */
+             * same fix for this sibling visibility test (D953 too). */
             {
                 extern f32 portDrawDistanceMultiplier(void);
+                extern f32 portLodScaleOwnFov(void);
                 scalez /= portDrawDistanceMultiplier();
+                scalez *= portLodScaleOwnFov();
             }
 #endif
             sp20 = ((sp20 - ptr->z) * 100 / arg1 + ptr->z) * scalez;

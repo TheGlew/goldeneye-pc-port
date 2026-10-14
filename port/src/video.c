@@ -312,6 +312,37 @@ f32 portScaleFovY(f32 fovy, s32 isTitleScreen)
     return fovy;
 }
 
+/* D953: tan(own/2) / tan(rendered/2), own = the game's fovy (viGetFovY, zoom
+ * included), rendered = c_perspfovy (what currentPlayerSetCameraScale built
+ * c_lodscalez from: portScaleFovY's widening, clamps and title exemption).
+ * c_lodscalez is tan(fovy/2)-proportional, so multiplying it by this gives
+ * the value the game would compute at its own FOV. Every RENDER consumer of
+ * c_lodscalez (model LOD, prop fog fade, prop fog-range visibility) uses it,
+ * so Video.FovScale widens the view without pulling detail swaps, fades and
+ * pop-in closer (x0.58 at 150) -- they are view-depth tests, so the pulled-in
+ * band swept over off-axis objects while turning. Frustum culling (D222)
+ * keeps the rendered value. 1.0f whenever the two are equal (all defaults).
+ * Cached on the pair (called per model node and per prop). */
+f32 portLodScaleOwnFov(void)
+{
+    extern f32 viGetFovY(void);
+    extern f32 getPlayer_c_perspfovy(void);
+    static f32 lastOwn = -1.0f, lastEff = -1.0f, lastK = 1.0f;
+    const f32 own = viGetFovY();
+    const f32 eff = getPlayer_c_perspfovy();
+    if (own == lastOwn && eff == lastEff) {
+        return lastK;
+    }
+    lastOwn = own;
+    lastEff = eff;
+    lastK = 1.0f;
+    if (own > 0.0f && eff > 0.0f && own != eff) {
+        const f32 h = 3.14159265f / 360.0f;
+        lastK = tanf(own * h) / tanf(eff * h);
+    }
+    return lastK;
+}
+
 /* D468: the factor portScaleFovY applies to an in-level fovy (clamps
  * ignored), so gameplay can recover the game's own FOV from the rendered one.
  * 1.0f at the defaults (native widescreen on, FovScale 100). */

@@ -464,6 +464,7 @@ D645,FIXED,"Original 1.1: F10 ""Invert look"" did not invert vertical look (#145
 D646,FIXED,"F10 dropdown popup drew over the hint/tooltip panel (popup bounded by the screen edge, not the settings box) —",FIXED 2026-10-12 (ddGeom bounded to the box; maintainer-verified)
 D951,OPEN,"v0.6.0 release gate: Windows golden sweep flags are timing noise in the test, not rendering changes —",OPEN (test-side; 2026-10-13)
 D952,FIXED,"macOS: black window, no frame, when the game starts while the display is asleep (SDL3 Cocoa VSync waits forever on a CVDisplayLink that never started) —","FIXED 2026-10-13 (port-only, gfx_sdl2.cpp; Mac A/B:"
+D953,OPEN,Deck: wide Field of view feels choppier while turning —,OPEN (fix candidate on fix/d953-fov-lod; Dam turn probe 90 deg:
 D954,FIXED,"Doors and guards flicker at 90 fps, not at 60:","FIXED 2026-10-13 (port-only, gfx_pc.cpp + interpportal.c; Windows-measured; Deck check owed)"
 D955,OPEN,"Objects (props, doors, guards) moved at the 60 Hz tick inside a 90 Hz picture:","IMPLEMENTED 2026-10-13 (port-only, gfx_pc.cpp + interpportal.c; Windows-measured; Deck feel check owed)"
 D607,OPEN,Address model unified into one header:,DONE 2026-10-07 (macos branch; Windows identity gate:
