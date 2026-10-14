@@ -875,9 +875,9 @@ covers D24–D69; the log continues in §H (D32 procedure, D70–D121).
 | D646 | **F10 dropdown popup drew over the hint/tooltip panel (popup bounded by the screen edge, not the settings box)** — full `## D646` entry at file tail | FIXED 2026-10-12 (`ddGeom` bounded to the box; maintainer-verified) |
 | D951 | **v0.6.0 release gate: Windows golden sweep flags are timing noise in the test, not rendering changes** — full `## D951` entry at file tail | OPEN (test-side; 2026-10-13) |
 | D952 | **macOS: black window, no frame, when the game starts while the display is asleep (SDL3 Cocoa VSync waits forever on a CVDisplayLink that never started)** — full `## D952` entry at file tail | FIXED 2026-10-13 (port-only, `gfx_sdl2.cpp`; Mac A/B: unfixed 3/3 hang, fixed 0/5) |
-| D953 | **Deck: wide Field of view feels choppier while turning — FovScale moves every model LOD switch 1.73x closer (c_lodscalez built from the rendered fovy, D222)** — full `## D953` entry at file tail | OPEN (fix candidate on `fix/d953-fov-lod`; Dam turn probe 90 deg: 400 -> 120 LOD flips, 60 deg: 0; maintainer LodDistance feel test owed) |
-| D954 | **Doors and guards flicker at 90 fps, not at 60: in-between presents drew props at the exact camera while rooms used the blended one** — full `## D954` entry at file tail | FIXED 2026-10-13 (port-only, `gfx_pc.cpp` + `interpportal.c`; Windows-measured; Deck check owed) |
-| D955 | **Objects (props, doors, guards) moved at the 60 Hz tick inside a 90 Hz picture: in-between presents now blend object motion per joint** — full `## D955` entry at file tail | IMPLEMENTED 2026-10-13 (port-only, `gfx_pc.cpp` + `interpportal.c`; Windows-measured; Deck feel check owed) |
+| D953 | **Deck: wide Field of view feels choppier while turning — FovScale moves every model LOD switch 1.73x closer (c_lodscalez built from the rendered fovy, D222)** — full `## D953` entry at file tail | FIXED 2026-10-13 (v0.6.0; LOD + prop fog fade/visibility follow the game FOV; maintainer Deck-confirmed) |
+| D954 | **Doors and guards flicker at 90 fps, not at 60: in-between presents drew props at the exact camera while rooms used the blended one** — full `## D954` entry at file tail | FIXED 2026-10-13 (port-only, `gfx_pc.cpp` + `interpportal.c`; maintainer Deck-confirmed) |
+| D955 | **Objects (props, doors, guards) moved at the 60 Hz tick inside a 90 Hz picture: in-between presents now blend object motion per joint** — full `## D955` entry at file tail | FIXED 2026-10-13 (port-only, `gfx_pc.cpp` + `interpportal.c`; sky pass; maintainer Deck-confirmed) |
 
 Phase 2 replaced the Phase-1 demo loop with the real `mainproc()` on real OS
 threads, compiled GE's real `src/sched.c`, and brought in PD's fast3d software
@@ -22018,7 +22018,7 @@ FpsCap = 60'`: 20/21 PASS; statue REGRESSION (4.66%, frame 900).
 
 **Status.** FIXED.
 
-## D953: wide Field of view feels choppier on the Deck while turning — LOD switches move closer with FovScale — OPEN (fix candidate, maintainer feel test owed)
+## D953: wide Field of view feels choppier on the Deck while turning — LOD switches move closer with FovScale — FIXED (v0.6.0)
 
 **Symptom (maintainer, Deck).** At the maximum Field of view (90 deg vertical in the menu = `Video.FovScale = 150`) turning feels choppier than at the default 60 deg, at 60 AND 90 fps; frame times look fine. Maintainer can't name a specific artefact ("it just feels worse", "mostly turning").
 
@@ -22036,7 +22036,9 @@ FpsCap = 60'`: 20/21 PASS; statue REGRESSION (4.66%, frame 900).
 Measured (Windows, Surface 1, 1280x800, 60 fps, same scripted look left/right, temp probe from frame 400, since removed): LOD flips 37 / 37 / 37, fade-state changes 1 / 1 / 1, visibility flips 0 / 2 / 0 (FOV 100 / 150 / 150 + fix). Evaluations in the partial fog fade: 256 / 0 / 246, so at max FOV without the fix the props that sit half-faded in Surface's fog at the default FOV were fully invisible; the fix restores them. **On Surface none of these change while turning, so they do not explain the maintainer's "default FOV feels smoother at any fps" (Deck, Surface, 90 fps, D954 build).** Remaining FOV-dependent factor, by code: image-level. At bilinear (the Deck ini: TextureFilter 1) only textures the game flags as mipmapped get mips (`gfx_opengl.cpp` upload), the rest are minified with plain GL_LINEAR, and a 90-deg vertical FOV minifies every surface ~1.7x more, so more of the frame shimmers while the camera moves; thin geometry goes sub-pixel likewise (MSAA 2x). Plus the rectilinear stretch at 116 deg horizontal (edge vs centre screen speed 3.6x, against 1.9x at the default). Discriminating test, no build: FOV 90 with Texture filter = Trilinear (mips on every texture).
 Maintainer (same evening) rejects the texture lead: "models/objects kinda lag behind... like tearing except nothing is tearing... just seem to update not at the right speed." That matches the 90 fps path: in-between passes blend only the camera (D578, D954), so object motion (props and matrix-skinned chrs) still steps at the 60 Hz tick inside a 90 Hz picture. Plan D955 (object-motion interpolation keyed by (Model*, joint), no game hooks) is reviewed (go with changes) and staged; Stage 0 is instrumentation only. Still unexplained: why max FOV feels worse than the default at the same fps. Open lead: GE's wall-clock tick step (frametiming.c) taking 2-tick steps more often at wide FOV on the Deck; never measured (Deck summaries record presents and draw time only); `GE_D193=1` logs render frames vs sim ticks per second.
 
-**Status.** OPEN.
+**Pass 3 (maintainer, Deck, 2026-10-13).** Surface building windows flickered white while the camera moved, at 60 and 90 fps, at FovScale 150: the prop fog fade (`chrobjFogVisRangeRelated`, view depth `zDepth`) was pulled to x0.58, so half-fogged window props went fully invisible; pass 2's `portLodScaleOwnFov` fixes it (maintainer-confirmed on the combined D953+D954+D955 build). Texgen ruled out (probe: Surface's texgen draws keep constant UVs while the camera moves).
+
+**Status.** FIXED (v0.6.0).
 ## D954: doors and guards flicker at 90 fps (not at 60) — in-between presents drew props at the exact camera, rooms at the blended one — FIXED 2026-10-13 (port layer; maintainer Deck check owed)
 
 **Symptom (maintainer, Deck, Surface).** Doors and guards flicker at 90 fps; never at 60 fps. First seen on a D953 test build, but nothing in D953 depends on frame rate (LOD is chosen once per game tick and the in-between passes replay the same list), so the trigger is the D578 interpolation, which only runs above 60 fps.
@@ -22049,7 +22051,7 @@ Maintainer (same evening) rejects the texture lead: "models/objects kinda lag be
 
 **Verified.** Windows build; Surface run as above: convention check ok, 0 passes without a snapshot, the gun disarm hit 431 times per 10 s of gameplay (the remaining passes had no gun drawn). New 10 s log line `D954 prop camera: ...`. Deck build (release recipe: RelWithDebInfo, gcc-14, rpath `$ORIGIN`, bundled SDL2 2.30.0) deployed to the maintainer's shortcut. **Owed:** maintainer Deck check at 90 fps (Surface doors and guards; also the first-person gun while turning, which must not move).
 
-**Status.** FIXED (Deck confirmation owed).
+**Status.** FIXED. Maintainer Deck check 2026-10-13: door/guard flicker gone at 90 fps.
 
 ## D955: object motion at 90+ fps — props, doors and guards moved at the 60 Hz tick inside a 90 Hz picture — IMPLEMENTED 2026-10-13 (port layer; maintainer Deck check owed)
 
@@ -22068,4 +22070,4 @@ Maintainer (same evening) rejects the texture lead: "models/objects kinda lag be
 **Pass 2 (2026-10-13, same evening).** (a) The sky and sky water are pre-projected on the CPU for camera N (`sky.c` G_FLOATVTX_EXT clip-space verts), so on in-between presents the horizon stayed at camera N while the world took the blended camera. Per blend pass the camera-space delta `C = P * R^-1 * Rb * P^-1` (rotation part; the sky is at infinity) is applied to each sky vertex: view point rebuilt from (x_c/sx, y_c/sy, -w), rotated, re-projected; S/T unchanged. Dam: 556-589 passes re-projected per 10 s. (b) Destroyed objects draw world-space matrices under the room projection (`propobj.c` objRender `destroyed` branch), where the camera rebase is wrong: object joints are blended only while the props' corrected plain perspective is loaded (`s_pcam_applied`). (c) The first-person weapon is NOT blended: its loads barely ever come from `hand->weaponModel.render_pos` (counted: under 5 per frame), so it is drawn through another matrix path; follow-up. Dam after (a)+(b): 32,013 of 32,140 keyed joint loads blended, 0 gate rejects, 90.1 presents/s.
 Maintainer, Deck, 90 fps (2026-10-13): guards and doors smooth.
 
-**Status.** IMPLEMENTED (Deck check owed).
+**Status.** FIXED (v0.6.0). Maintainer Deck check 2026-10-13: guards and doors smooth at 90 fps. Follow-up: first-person weapon blend.

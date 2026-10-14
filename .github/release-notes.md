@@ -13,7 +13,7 @@
 
 ## Highlights
 
-- **Frame rates above 60.** Pick 90, 120, 144, 165 or 240, or **Auto** to match your display (up to 240). The game still runs at its original speed; the extra frames are blended between its ticks. A rework of f1zz1ec0ke's #137.
+- **Frame rates above 60.** Pick 90, 120, 144, 165 or 240, or **Auto** to match your display (up to 240). The game still runs at its original speed; the extra frames are blended between its ticks, for the camera, the level, the sky, and the guards, doors and objects moving in it. A rework of f1zz1ec0ke's #137.
 - **macOS on Apple Silicon (experimental).** A new download for M1 and later Macs, based on danturn's #95. Tested on one M3 Mac so far; reports are welcome.
 - **Original controls are now original (#145, #149).** With *Control style* set to Original, your pad behaves as an N64 controller, and *Invert look* works in every original style.
 - **Fixes:** geometry vanishing up close (#150), the first launch opening on the wrong monitor (#151), the end-credits crash on Linux and macOS (#152) and a crash when a guard spawns with a hat (#153, #156).
@@ -57,7 +57,7 @@ The [user guide](https://github.com/jkdansereau/goldeneye-pc-port/blob/v0.6.0/do
 
 ### Added
 
-- **Frame rate cap:** Auto, 90, 120, 144, 165 and 240 join 30 and 60 (F10 → *Video*). Auto is the default on fresh installs; an existing `ge007.ini` keeps its value. Above 60 the extra frames are blended between game ticks (no effect on a 60 Hz display), which adds one tick of latency; a fast camera turn or a big change on screen shows a full frame instead. The *Original N64* display mode keeps 60.
+- **Frame rate cap:** Auto, 90, 120, 144, 165 and 240 join 30 and 60 (F10 → *Video*). Auto is the default on fresh installs; an existing `ge007.ini` keeps its value. Above 60 the extra frames are blended between game ticks (no effect on a 60 Hz display): the camera, the level and the sky, and each guard, door and object along its own motion. This adds one tick of latency; a fast camera turn or a big change on screen shows a full frame instead. The *Original N64* display mode keeps 60.
 - **macOS Apple Silicon download** (experimental), plus source builds with Homebrew's GNU `gcc`.
 - **Original control style as an N64 controller:** every press sends the real N64 button in levels, menus, the watch and the tank. Default layout: South = A, West = B, right trigger = Z, left trigger / RB = R, LB = L, right stick = C-buttons. Each button can be moved per player in `ge007.ini` (`Input.N64Pad.A = a`, ...), and `Input.N64StickFeel` picks the N64's linear stick range.
 - **Mission timer** (#144): an optional always-visible timer, off by default.
@@ -66,6 +66,7 @@ The [user guide](https://github.com/jkdansereau/goldeneye-pc-port/blob/v0.6.0/do
 ### Fixed
 
 - Geometry vanishing when you stand against a wall (#150).
+- With a wider *Field of view*, objects in fog (such as the windows on Surface) no longer flicker or vanish while you turn, and models keep their detail out to the normal distance.
 - The first launch opening on the wrong monitor (#151).
 - A crash during the end credits on Linux and macOS (#152).
 - macOS: a black window that never started the game when it was launched while the display was asleep.
