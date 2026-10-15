@@ -327,6 +327,7 @@ void lvlStageLoad(s32 stage)
     g_CurrentStageToLoad = stage;
 #ifdef PORT
     texpackReset(); /* HD texture packs: the previous stage's texture pools are gone */
+    geLangClearStageBanks(); /* and so are the stage text banks that pointed into them */
 #endif
 
     // this if block pushes where g_CurrentStageToLoad gets loaded to the

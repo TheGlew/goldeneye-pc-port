@@ -439,13 +439,32 @@ void geCampaignOnPlayerReset(void)
                  bossGetStageNum(), briefingpage, (int)selected_difficulty);
 }
 
+extern u32 *g_LangBanks[45];
+
+/*
+ * A stage's text bank lives in the stage pool, which is gone when the stage
+ * unloads, but the game only clears a bank from the briefing screen, which the
+ * campaign never shows. The Cuba credits read bank 12 (Depot's slot) with text
+ * ids the port never resolves, and a chain that had passed through Depot
+ * faulted on the stale pointer. Every stage bank is cleared at each stage load;
+ * the stage about to load fills its own bank afterwards, and the permanent
+ * banks (guns, titles, menus) are untouched.
+ */
+void geLangClearStageBanks(void)
+{
+    int i;
+
+    for (i = LAME; i <= LWAX; i++) {
+        g_LangBanks[i] = NULL;
+    }
+}
+
 /*
  * Diagnostic for the Cuba credits: the campaign's Cradle -> Cuba hand-over
  * crashed in textMeasure on a garbage string pointer. Logs the first entries'
  * text ids, their bank slots and the resolved pointer; refuses an implausible
  * pointer so the level can finish instead of faulting.
  */
-extern u32 *g_LangBanks[45];
 
 int geCreditsTextGuard(int textid, u8 *text)
 {

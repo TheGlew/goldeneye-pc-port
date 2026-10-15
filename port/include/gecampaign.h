@@ -42,5 +42,7 @@ void geCampaignOnPlayerReset(void);
 void geCampaignTick(void);
 /* bondviewRenderCredits: log and refuse a garbage credits string pointer. */
 int  geCreditsTextGuard(int textid, unsigned char *text);
+/* lvlStageLoad: drop every stage text bank; the previous stage's pool is gone. */
+void geLangClearStageBanks(void);
 
 #endif /* PORT_GECAMPAIGN_H */
