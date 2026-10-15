@@ -6,6 +6,9 @@
 #include <PR/R4300.h>
 #include "ramrom.h"
 #include "decompress.h"
+#ifdef PORT
+#include "texpack.h"
+#endif
 
 
 #define TEX_ALPHA_WEIGHT 961
@@ -2618,6 +2621,27 @@ void texLoad(s32 *updateword, struct texpool *pool)
             }
 
             pool->leftpos += bytesout;
+
+#ifdef PORT
+            {
+                /* HD texture packs: this is the one place a texture's number and its
+                 * inflated bytes meet, so the renderer can name what it uploads */
+                extern s32 texGetSizeInBytes(struct tex *tex, s32 lod);
+                extern s32 texGetLineSizeInBytes(struct tex *tex, s32 lod);
+                s32 lodi;
+                u32 pixelbytes = 0;
+                s32 numlods = tex->maxlod ? tex->maxlod : 1;
+
+                for (lodi = 0; lodi < numlods; lodi++) {
+                    pixelbytes += texGetSizeInBytes(tex, lodi) * 8;
+                }
+
+                texpackRegister(tex->texturenum, tex->data, (u32)bytesout,
+                                tex->width, tex->height, tex->gbiformat, tex->depth, tex->lutmodeindex,
+                                texGetLineSizeInBytes(tex, 0) * 8, pixelbytes,
+                                tex->lutmodeindex ? tex->unk0a + 1 : 0);
+            }
+#endif
         }
 
         texFreeBytesInBuffer(pool);

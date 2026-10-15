@@ -21,7 +21,6 @@ extern int g_GeCampaignCarryInventory;
 extern int g_GeCampaignCarryHealth;
 extern int g_GeCampaignRetryOnDeath;
 extern int g_GeCampaignDifficulty;
-extern int g_GeCampaignExitWhenComplete;
 
 /* ge007.ini [Debug] - soak scaffolding, never on by default */
 extern int g_GeCampaignDebugAutoComplete;
@@ -41,5 +40,7 @@ int  geCampaignAfterCast(void);
 void geCampaignOnPlayerReset(void);
 /* lvlMainloop: per-frame (debug soak triggers). */
 void geCampaignTick(void);
+/* bondviewRenderCredits: log and refuse a garbage credits string pointer. */
+int  geCreditsTextGuard(int textid, unsigned char *text);
 
 #endif /* PORT_GECAMPAIGN_H */

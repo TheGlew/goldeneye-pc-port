@@ -9115,6 +9115,9 @@ Gfx *bondviewRenderCredits(Gfx *gdl)
             if ((u32) credits_pointer[i].TextId1 != 0x5011)
             {
                 text = langGet(credits_pointer[i].TextId1);
+#ifdef PORT
+                if (geCreditsTextGuard(credits_pointer[i].TextId1, (u8 *)text)) { continue; }
+#endif
 
                 if (credits_pointer[i].Position1 >= 0)
                 {
@@ -9159,6 +9162,9 @@ Gfx *bondviewRenderCredits(Gfx *gdl)
             if (credits_pointer[i].TextId2 != 0x5011)
             {
                 text = langGet(credits_pointer[i].TextId2);
+#ifdef PORT
+                if (geCreditsTextGuard(credits_pointer[i].TextId2, (u8 *)text)) { continue; }
+#endif
 
                 if (credits_pointer[i].Position2 >= 0)
                 {

@@ -66,6 +66,7 @@
 #include "chr.h"
 #ifdef PORT
 #include "gecampaign.h"
+#include "texpack.h"
 #endif
 
 // bss
@@ -324,6 +325,9 @@ void lvlStageLoad(s32 stage)
     struct player_data *player_data;
 
     g_CurrentStageToLoad = stage;
+#ifdef PORT
+    texpackReset(); /* HD texture packs: the previous stage's texture pools are gone */
+#endif
 
     // this if block pushes where g_CurrentStageToLoad gets loaded to the
     // top of the method. Maybe a debug log about which level is loaded.
@@ -627,6 +631,9 @@ void lvlStageLoad(s32 stage)
         }
 
         set_cur_player(0);
+#ifdef PORT
+        texpackCensus(); /* HD texture packs: dump everything this stage loaded, when dumping */
+#endif
     }
 
     /**
@@ -1108,6 +1115,14 @@ void lvlManageMpGame(void)
         d318WatchdogTick(); /* D318/D320 pin detector, log-only since D329 (findings D318) */
     }
     geCampaignTick();
+    if (g_TexpackDump) {
+        /* textures that loaded after the stage reset (weapons, props spawned later) */
+        static s32 texpackTicks = 0;
+        if (++texpackTicks >= 600) {
+            texpackTicks = 0;
+            texpackCensus();
+        }
+    }
 #endif
     if ((g_CurrentStageToLoad != LEVELID_TITLE) && (D_80048394 == 0) && (g_ClockTimer > 0))
     {

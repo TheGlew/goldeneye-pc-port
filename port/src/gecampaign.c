@@ -6,12 +6,12 @@
  * when it sends Cradle on to Cuba.
  */
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "platform.h"
 #include "system.h"
 #include "config.h"
-#include "video.h"
 #include "gecampaign.h"
 
 #include "bondtypes.h"
@@ -30,7 +30,6 @@ int g_GeCampaignCarryInventory = 1;
 int g_GeCampaignCarryHealth = 1;
 int g_GeCampaignRetryOnDeath = 1;
 int g_GeCampaignDifficulty = 0;
-int g_GeCampaignExitWhenComplete = 0;
 int g_GeCampaignDebugAutoComplete = 0;
 int g_GeCampaignDebugAutoDie = 0;
 
@@ -41,7 +40,6 @@ PD_CONSTRUCTOR static void geCampaignConfigInit(void)
     configRegisterInt("Campaign.CarryHealth", &g_GeCampaignCarryHealth, 0, 1);
     configRegisterInt("Campaign.RetryOnDeath", &g_GeCampaignRetryOnDeath, 0, 1);
     configRegisterInt("Campaign.Difficulty", &g_GeCampaignDifficulty, 0, 2);
-    configRegisterInt("Campaign.ExitWhenComplete", &g_GeCampaignExitWhenComplete, 0, 1);
     configRegisterInt("Debug.CampaignAutoComplete", &g_GeCampaignDebugAutoComplete, 0, 3600);
     configRegisterInt("Debug.CampaignAutoDie", &g_GeCampaignDebugAutoDie, 0, 3600);
 }
@@ -78,16 +76,6 @@ static int s_ForceComplete = 0;
 static int s_DebugCompleteFired = 0;
 static int s_DebugDieFired = 0;
 static int s_Booted = 0;
-
-/* Names for the handoff file; index = ITEM_IDS value, only the carryable range. */
-static const char *s_ItemNames[] = {
-    "ITEM_UNARMED", "ITEM_FIST", "ITEM_KNIFE", "ITEM_THROWKNIFE", "ITEM_WPPK", "ITEM_WPPKSIL",
-    "ITEM_TT33", "ITEM_SKORPION", "ITEM_AK47", "ITEM_UZI", "ITEM_MP5K", "ITEM_MP5KSIL",
-    "ITEM_SPECTRE", "ITEM_M16", "ITEM_FNP90", "ITEM_SHOTGUN", "ITEM_AUTOSHOT", "ITEM_SNIPERRIFLE",
-    "ITEM_RUGER", "ITEM_GOLDENGUN", "ITEM_SILVERWPPK", "ITEM_GOLDWPPK", "ITEM_LASER", "ITEM_WATCHLASER",
-    "ITEM_GRENADELAUNCH", "ITEM_ROCKETLAUNCH", "ITEM_GRENADE", "ITEM_TIMEDMINE", "ITEM_PROXIMITYMINE",
-    "ITEM_REMOTEMINE",
-};
 
 /* Guns and throwables only: gadgets, keys and mission props come from each stage. */
 static int geCampaignItemCarries(int item)
@@ -231,44 +219,6 @@ static void geCampaignRestore(const struct geloadout *l)
     }
 }
 
-static void geCampaignWriteFile(const char *name, const struct geloadout *l, int complete)
-{
-    char rel[128];
-    FILE *fp;
-    int i;
-
-    snprintf(rel, sizeof(rel), "$S/%s", name);
-    fp = fopen(sysResolvePath(rel), "w");
-
-    if (fp == NULL) {
-        sysLogPrintf(LOG_WARNING, "campaign: could not write %s", rel);
-        return;
-    }
-
-    fprintf(fp, "# GoldenEye 007 continuous campaign: Bond's loadout as the last mission ended\n");
-    fprintf(fp, "game goldeneye\n");
-    fprintf(fp, "difficulty %d\n", (int)selected_difficulty);
-    fprintf(fp, "complete %d\n", complete);
-
-    if (l && l->valid) {
-        for (i = 0; i < l->numweapons; i++) {
-            int item = l->weapon_right[i];
-            int ammotype = get_ammo_type_for_weapon(item);
-            int ammo = (ammotype > 0 && ammotype < CAMPAIGN_NUM_AMMOTYPES) ? l->ammo[ammotype] : 0;
-
-            if (item >= 0 && item < (int)(sizeof(s_ItemNames) / sizeof(s_ItemNames[0]))) {
-                fprintf(fp, "weapon %s %d\n", s_ItemNames[item], ammo);
-            }
-        }
-
-        fprintf(fp, "health %.3f\n", l->health);
-        fprintf(fp, "armour %.3f\n", l->armour);
-    }
-
-    fclose(fp);
-    sysLogPrintf(LOG_NOTE, "campaign: wrote %s", rel);
-}
-
 /* The mission_folder_setup_entries row for a solo level, or -1. */
 static int geCampaignPageForMission(int mission_num)
 {
@@ -315,11 +265,6 @@ void geCampaignBootMenu(void)
     s_Booted = 1;
     g_GeCampaignContinuous = 1;
 
-    if (sysArgCheck("--campaign-exit")) {
-        /* the two-game launcher waits for this process to end */
-        g_GeCampaignExitWhenComplete = 1;
-    }
-
     /* saves[] is only populated by the legal screen's init; see Game.SkipIntro (D3xx) */
     fileValidateSaves();
     is_first_time_on_main_menu = FALSE;
@@ -331,12 +276,25 @@ void geCampaignBootMenu(void)
      * return this module relies on */
     maybe_is_in_menu = TRUE;
     briefingpage = CAMPAIGN_FIRST_PAGE;
-    selected_stage = mission_folder_setup_entries[CAMPAIGN_FIRST_PAGE].stage_id;
+    {
+        /* soak aid: GE_CAMPAIGN_PAGE=<row of mission_folder_setup_entries> starts later in the chain */
+        const char *pg = getenv("GE_CAMPAIGN_PAGE");
+
+        if (pg && *pg) {
+            int page = (int)strtol(pg, NULL, 0);
+
+            if (page >= CAMPAIGN_FIRST_PAGE && mission_folder_setup_entries[page].folder_text_preset
+                && mission_folder_setup_entries[page].stage_id >= 0) {
+                briefingpage = page;
+            }
+        }
+    }
+    selected_stage = mission_folder_setup_entries[briefingpage].stage_id;
     menu_update = MENU_RUN_STAGE;
 
-    sysLogPrintf(LOG_NOTE, "campaign: continuous on, booting into stage %d (page %d) at difficulty %d; carry inventory %d health %d, retry on death %d, exit when complete %d",
+    sysLogPrintf(LOG_NOTE, "campaign: continuous on, booting into stage %d (page %d) at difficulty %d; carry inventory %d health %d, retry on death %d",
                  selected_stage, briefingpage, (int)selected_difficulty, g_GeCampaignCarryInventory,
-                 g_GeCampaignCarryHealth, g_GeCampaignRetryOnDeath, g_GeCampaignExitWhenComplete);
+                 g_GeCampaignCarryHealth, g_GeCampaignRetryOnDeath);
 }
 
 void geCampaignOnLevelExit(void)
@@ -394,7 +352,6 @@ void geCampaignAfterStage(void)
 
         s_Carry = *carry;
         geCampaignLog("carrying forward", &s_Carry);
-        geCampaignWriteFile("handoff-from-goldeneye.txt", &s_Carry, mission == SP_LEVEL_EGYPT);
 
         if (mission == SP_LEVEL_CRADLE) {
             /* The story ending plays as its own stage; the cast display follows it */
@@ -407,13 +364,7 @@ void geCampaignAfterStage(void)
 
         if (mission == SP_LEVEL_EGYPT) {
             sysLogPrintf(LOG_NOTE, "campaign: Egyptian complete -> campaign complete");
-            geCampaignWriteFile("campaign-complete.txt", &s_Carry, 1);
             s_RestorePending = 0;
-
-            if (g_GeCampaignExitWhenComplete) {
-                videoRequestQuit("campaign complete");
-            }
-
             return; /* the normal mission-complete dossier for the last one */
         }
 
@@ -486,6 +437,32 @@ void geCampaignOnPlayerReset(void)
     geCampaignLog("stage start", &s_StageStart);
     sysLogPrintf(LOG_NOTE, "campaign: stage %d (page %d) started at difficulty %d",
                  bossGetStageNum(), briefingpage, (int)selected_difficulty);
+}
+
+/*
+ * Diagnostic for the Cuba credits: the campaign's Cradle -> Cuba hand-over
+ * crashed in textMeasure on a garbage string pointer. Logs the first entries'
+ * text ids, their bank slots and the resolved pointer; refuses an implausible
+ * pointer so the level can finish instead of faulting.
+ */
+extern u32 *g_LangBanks[45];
+
+int geCreditsTextGuard(int textid, u8 *text)
+{
+    static int logged = 0;
+    int bank = (textid >> 10) & 0x3f;
+    int bad = text == NULL || (uintptr_t)text < 0x10000 || (uintptr_t)text >= 0x400000000ULL;
+
+    if (logged < 12 || bad) {
+        if (logged < 40) {
+            sysLogPrintf(LOG_NOTE, "credits: id 0x%04x bank %d bankptr %p text %p%s",
+                         textid, bank, (bank < 45) ? (void *)g_LangBanks[bank] : NULL, (void *)text,
+                         bad ? " (skipped)" : "");
+            logged++;
+        }
+    }
+
+    return bad;
 }
 
 void geCampaignTick(void)
