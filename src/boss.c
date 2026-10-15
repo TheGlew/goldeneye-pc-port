@@ -43,6 +43,9 @@
 #include "game/player.h"
 #include "game/frametiming.h"
 #include "PR/R4300.h"
+#ifdef PORT
+#include "gecampaign.h"
+#endif
 
 /**
  * @file boss.c
@@ -889,6 +892,7 @@ void bossReturnTitleStage(void) {
     objectivestatusDisableStatusDisplay();
 #endif
 #ifdef PORT
+    geCampaignOnLevelExit(); /* continuous campaign: snapshot Bond's loadout before the stage unloads */
     if (getenv("GE_D160")) {
         osSyncPrintf("D160: bossReturnTitleStage ENTER stage=%d allComplete=%d caller=%p\n",
                      (int)bossGetStageNum(), (int)objectiveIsAllComplete(),

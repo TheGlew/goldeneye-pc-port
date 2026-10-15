@@ -64,6 +64,9 @@
 #include "unk_092E50.h"
 #include "frametiming.h"
 #include "chr.h"
+#ifdef PORT
+#include "gecampaign.h"
+#endif
 
 // bss
 //CODE.bss:8008C260
@@ -388,6 +391,11 @@ void lvlStageLoad(s32 stage)
         init_menus_or_reset();
 
 #ifdef PORT
+        /* continuous campaign: --campaign boots straight into Dam (first title load only);
+         * on the return from a solo mission, the queued dossier is replaced by the next stage */
+        geCampaignBootMenu();
+        geCampaignAfterStage();
+
         /* Debug harness: GE_STARTMENU=<id> jumps the front end straight to a
          * menu on boot (skips intro + folder/mode/mission/difficulty select),
          * so WS2 screens -- briefing (0x0A), mission-complete (0x0D),
@@ -1099,6 +1107,7 @@ void lvlManageMpGame(void)
         extern void d318WatchdogTick(void);
         d318WatchdogTick(); /* D318/D320 pin detector, log-only since D329 (findings D318) */
     }
+    geCampaignTick();
 #endif
     if ((g_CurrentStageToLoad != LEVELID_TITLE) && (D_80048394 == 0) && (g_ClockTimer > 0))
     {

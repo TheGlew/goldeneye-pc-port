@@ -20,6 +20,9 @@
 #include "chrobjdata.h"
 #include "file2.h"
 #include "front.h"
+#ifdef PORT
+#include "gecampaign.h"
+#endif
 #include "image_bank.h"
 #include "lv.h"
 #include "initanitable.h"
@@ -8176,8 +8179,13 @@ void interface_menu18_displaycast(void)
         }
         else if (full_actor_intro != 0)
         {
-            frontChangeMenu(MENU_MISSION_SELECT, 1);
-            set_cursor_to_stage_solo(SP_LEVEL_CRADLE);
+#ifdef PORT
+            if (!geCampaignAfterCast())
+#endif
+            {
+                frontChangeMenu(MENU_MISSION_SELECT, 1);
+                set_cursor_to_stage_solo(SP_LEVEL_CRADLE);
+            }
             full_actor_intro = 0;
         }
         else

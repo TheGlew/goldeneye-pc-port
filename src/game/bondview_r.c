@@ -18,6 +18,9 @@
 #include "game/player.h"
 #include "game/ramromreplay.h"
 #include "game/stan.h"
+#ifdef PORT
+#include "gecampaign.h"
+#endif
 
 
 /**
@@ -411,6 +414,11 @@ void bondviewLoadSetupIntroSection(void)
             }
         }
     }
+
+#ifdef PORT
+    /* continuous campaign: the previous mission's loadout goes on top of the intro items */
+    geCampaignOnPlayerReset();
+#endif
 
     if (g_CurrentSetupIntroCamera != NULL)
     {
